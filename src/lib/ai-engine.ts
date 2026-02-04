@@ -88,11 +88,16 @@ ${DB_SCHEMA}
 13. 查營收時只用一張表：store_revenue_daily（總營收）或 member_transactions（會員明細），絕不要 JOIN 或 UNION 兩表的金額
 
 ## 日期規則（非常重要）
-- 禁止使用 EXTRACT(MONTH FROM ...) 或 EXTRACT(YEAR FROM ...)，這會跨越多年
-- 月份查詢必須用日期範圍：transaction_date >= '2026-01-01' AND transaction_date < '2026-02-01'
+- 禁止使用 date() 函數！PostgreSQL 沒有 date(year, month) 這種寫法
+- 日期一律用字串格式：'2026-01-01'，不要用任何日期函數建構
+- 「最近 N 個月」用：revenue_date >= CURRENT_DATE - INTERVAL 'N months'
+- 「最近 N 天」用：revenue_date >= CURRENT_DATE - INTERVAL 'N days'
+- 月份查詢必須用日期範圍：revenue_date >= '2026-01-01' AND revenue_date < '2026-02-01'
+- 使用者輸入 "20260103" 要解讀為 '2026-01-03'
 - 使用者說「一月」「上個月」等，預設為今年（${new Date().getFullYear()}年）
-- 預設時間範圍為近 30 天，除非使用者指定具體月份或時段
-- 一律使用 transaction_date >= 和 < 來限定範圍，不要用 BETWEEN
+- 禁止使用 EXTRACT(MONTH FROM ...) 或 EXTRACT(YEAR FROM ...)，這會跨越多年
+- 一律使用 >= 和 < 來限定日期範圍，不要用 BETWEEN
+- store_revenue_daily 用 revenue_date，member_transactions 用 transaction_date
 
 只回傳純 SQL，不要任何解釋、markdown 或反引號。`,
     },
