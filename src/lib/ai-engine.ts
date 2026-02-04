@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { DB_SCHEMA } from './schema';
 import { validateAndSanitizeSql } from './sql-safety';
 import { query } from './db';
@@ -24,21 +23,46 @@ export interface AskResult {
   error?: string;
 }
 
-function getGenAI() {
+const LLM_MODEL = process.env.LLM_MODEL || 'google/gemini-2.0-flash-001';
+
+async function chatCompletion(messages: { role: string; content: string }[]): Promise<string> {
   const apiKey = process.env.LLM_API_KEY;
   if (!apiKey) throw new Error('LLM_API_KEY not configured');
-  return new GoogleGenerativeAI(apiKey);
+
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      'X-Title': 'Hamm - 277 BI',
+    },
+    body: JSON.stringify({
+      model: LLM_MODEL,
+      messages,
+      temperature: 0.1,
+      max_tokens: 2000,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`OpenRouter API error: ${res.status} ${err}`);
+  }
+
+  const data = await res.json();
+  return data.choices[0].message.content.trim();
 }
 
 async function textToSql(question: string, context?: string[]): Promise<string> {
-  const genAI = getGenAI();
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
   const contextStr = context?.length
     ? `\n\n先前對話脈絡:\n${context.join('\n')}`
     : '';
 
-  const prompt = `你是 Hamm，277 Bicycle 的資料分析助手。將使用者的中文問題轉換為 PostgreSQL SQL 查詢。
+  const text = await chatCompletion([
+    {
+      role: 'system',
+      content: `你是 Hamm，277 Bicycle 的資料分析助手。將使用者的中文問題轉換為 PostgreSQL SQL 查詢。
 
 ${DB_SCHEMA}
 
@@ -53,15 +77,14 @@ ${DB_SCHEMA}
 8. 銷售查詢要過濾 transaction_type = '銷貨'（排除銷退和收銀）
 9. 門市值只有：台南, 高雄, 台中, 台北, 美術（不含"店"字）
 10. 不要使用 INTO 關鍵字
-${contextStr}
 
-## 使用者問題
-${question}
-
-只回傳純 SQL，不要任何解釋、markdown 或反引號。`;
-
-  const result = await model.generateContent(prompt);
-  const text = result.response.text().trim();
+只回傳純 SQL，不要任何解釋、markdown 或反引號。`,
+    },
+    {
+      role: 'user',
+      content: question + contextStr,
+    },
+  ]);
 
   // Clean up any markdown formatting the model might add
   return text
@@ -72,10 +95,10 @@ ${question}
 }
 
 async function generateInsights(question: string, results: Record<string, unknown>[]): Promise<string[]> {
-  const genAI = getGenAI();
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
-  const prompt = `你是 Hamm，277 Bicycle 的經營顧問。基於以下查詢結果，提供 2-3 條精簡的經營洞察。
+  const text = await chatCompletion([
+    {
+      role: 'system',
+      content: `你是 Hamm，277 Bicycle 的經營顧問。基於查詢結果，提供 2-3 條精簡的經營洞察。
 
 要求：
 1. 每條洞察不超過 50 字
@@ -84,13 +107,13 @@ async function generateInsights(question: string, results: Record<string, unknow
 4. 語氣：專業但口語化，像是對老闆的簡報
 5. 如果發現異常值或趨勢，優先指出
 
-查詢問題：${question}
-查詢結果：${JSON.stringify(results.slice(0, 50))}
-
-回傳格式：每條洞察獨立一行，用數字編號。不要其他格式。`;
-
-  const result = await model.generateContent(prompt);
-  const text = result.response.text().trim();
+回傳格式：每條洞察獨立一行，用數字編號。不要其他格式。`,
+    },
+    {
+      role: 'user',
+      content: `查詢問題：${question}\n查詢結果：${JSON.stringify(results.slice(0, 50))}`,
+    },
+  ]);
 
   return text
     .split('\n')
@@ -144,7 +167,7 @@ function addStoreColors(data: Record<string, unknown>[]): Record<string, unknown
   });
 }
 
-function generateSummaryAnswer(question: string, results: Record<string, unknown>[]): string {
+function generateSummaryAnswer(_question: string, results: Record<string, unknown>[]): string {
   if (results.length === 0) return '查詢沒有找到符合條件的資料。';
   if (results.length === 1 && Object.keys(results[0]).length <= 2) {
     const values = Object.values(results[0]);
