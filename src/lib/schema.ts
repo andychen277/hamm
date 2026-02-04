@@ -134,6 +134,17 @@ export const DB_SCHEMA = `
 - result_message: text
 - created_at: timestamp
 
+### store_revenue_daily (門市每日營收, 含非會員)
+- id: integer (PK)
+- store: varchar(50) — values: 台南, 高雄, 台中, 台北, 美術
+- revenue_date: date
+- revenue: numeric(12,2) — 該日該門市的 ERP 完整營收（含非會員）
+- product_count: integer
+- updated_at: timestamp
+- UNIQUE(store, revenue_date)
+- 注意：此表從 ERP saleprodquery.php 同步，數字對齊 ERP 報表
+- 營收查詢優先使用此表（比 member_transactions 更準確）
+
 ### sync_logs (同步日誌)
 - id: integer (PK)
 - sync_type: varchar(50)
@@ -179,7 +190,8 @@ export const DB_SCHEMA = `
 - normal: < $50,000
 
 ## Transaction Types
-- 銷貨: regular sale
-- 銷退: return/refund
-- 收銀: cash register / payment
+- 收銀: POS 收銀結帳（營收主要來源，報表唯一計算的類型）
+- 銷貨: 特殊出貨/調撥（不計入營收報表）
+- 銷退: 退貨退款（不計入營收報表）
+- 重要：營收查詢必須使用 transaction_type = '收銀'
 `;

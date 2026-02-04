@@ -13,28 +13,44 @@ export async function GET() {
   try {
     const monthStart = new Date().toISOString().substring(0, 7) + '-01';
 
-    const result = await query<{ store: string; revenue: string; orders: string }>(
-      `SELECT
-         store,
-         SUM(total) as revenue,
-         COUNT(DISTINCT order_number) as orders
-       FROM member_transactions
-       WHERE transaction_date >= $1
-         AND transaction_type = '銷貨'
-         AND store IS NOT NULL
-         AND store != ''
-       GROUP BY store
-       ORDER BY revenue DESC`,
-      [monthStart]
-    );
+    // Prefer store_revenue_daily (includes non-member sales), fallback to member_transactions
+    const srdCheck = await query<{ cnt: string }>(`SELECT COUNT(*) as cnt FROM store_revenue_daily WHERE revenue_date >= $1`, [monthStart]);
+    const hasSRD = Number(srdCheck.rows[0].cnt) > 0;
 
-    const data = result.rows.map(row => ({
-      name: row.store + '店',
-      store: row.store,
-      revenue: Number(row.revenue),
-      orders: Number(row.orders),
-      color: STORE_COLORS[row.store] || '#64748b',
-    }));
+    let data;
+    if (hasSRD) {
+      const result = await query<{ store: string; revenue: string; product_count: string }>(
+        `SELECT store, SUM(revenue) as revenue, SUM(product_count) as product_count
+         FROM store_revenue_daily
+         WHERE revenue_date >= $1
+         GROUP BY store
+         ORDER BY revenue DESC`,
+        [monthStart]
+      );
+      data = result.rows.map(row => ({
+        name: row.store + '店',
+        store: row.store,
+        revenue: Number(row.revenue),
+        orders: Number(row.product_count),
+        color: STORE_COLORS[row.store] || '#64748b',
+      }));
+    } else {
+      const result = await query<{ store: string; revenue: string; orders: string }>(
+        `SELECT store, SUM(total) as revenue, COUNT(DISTINCT order_number) as orders
+         FROM member_transactions
+         WHERE transaction_date >= $1 AND transaction_type = '收銀'
+           AND store IS NOT NULL AND store != ''
+         GROUP BY store ORDER BY revenue DESC`,
+        [monthStart]
+      );
+      data = result.rows.map(row => ({
+        name: row.store + '店',
+        store: row.store,
+        revenue: Number(row.revenue),
+        orders: Number(row.orders),
+        color: STORE_COLORS[row.store] || '#64748b',
+      }));
+    }
 
     return NextResponse.json({ success: true, data });
   } catch (error) {

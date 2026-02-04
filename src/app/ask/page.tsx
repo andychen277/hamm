@@ -70,10 +70,10 @@ function AskPageInner() {
     setLoading(true);
 
     try {
-      // Build context from recent messages
-      const context = messages.slice(-6).map(m =>
-        m.role === 'user' ? `問：${m.content}` : `答：${m.content}`
-      );
+      // Build context from recent messages, filtering out empty content
+      const context = messages.slice(-6)
+        .filter(m => m.content && m.content.trim())
+        .map(m => m.role === 'user' ? `問：${m.content}` : `答：${m.content}`);
 
       const res = await fetch('/api/ask', {
         method: 'POST',

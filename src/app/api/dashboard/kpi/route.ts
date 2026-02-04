@@ -31,25 +31,29 @@ export async function GET() {
       // Today's revenue
       query<{ total: string }>(
         `SELECT COALESCE(SUM(total), 0) as total FROM member_transactions
-         WHERE transaction_date = $1 AND transaction_type = '銷貨'`,
+         WHERE transaction_date = $1 AND transaction_type = '收銀'`,
         [today]
       ),
       // Yesterday's revenue
       query<{ total: string }>(
         `SELECT COALESCE(SUM(total), 0) as total FROM member_transactions
-         WHERE transaction_date = $1 AND transaction_type = '銷貨'`,
+         WHERE transaction_date = $1 AND transaction_type = '收銀'`,
         [yesterday]
       ),
-      // This month's revenue
+      // This month's revenue (prefer store_revenue_daily, fallback to member_transactions)
       query<{ total: string }>(
-        `SELECT COALESCE(SUM(total), 0) as total FROM member_transactions
-         WHERE transaction_date >= $1 AND transaction_type = '銷貨'`,
+        `SELECT COALESCE(
+          (SELECT SUM(revenue) FROM store_revenue_daily WHERE revenue_date >= $1),
+          (SELECT SUM(total) FROM member_transactions WHERE transaction_date >= $1 AND transaction_type = '收銀')
+        ) as total`,
         [monthStart]
       ),
       // Previous month's revenue
       query<{ total: string }>(
-        `SELECT COALESCE(SUM(total), 0) as total FROM member_transactions
-         WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '銷貨'`,
+        `SELECT COALESCE(
+          (SELECT SUM(revenue) FROM store_revenue_daily WHERE revenue_date >= $1 AND revenue_date < $2),
+          (SELECT SUM(total) FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '收銀')
+        ) as total`,
         [prevMonthStart, prevMonthEnd]
       ),
       // Total members
@@ -70,7 +74,7 @@ export async function GET() {
         `SELECT COALESCE(AVG(order_total), 0) as avg FROM (
            SELECT order_number, SUM(total) as order_total
            FROM member_transactions
-           WHERE transaction_date >= $1 AND transaction_type = '銷貨'
+           WHERE transaction_date >= $1 AND transaction_type = '收銀'
            GROUP BY order_number
          ) sub`,
         [monthStart]
@@ -80,7 +84,7 @@ export async function GET() {
         `SELECT COALESCE(AVG(order_total), 0) as avg FROM (
            SELECT order_number, SUM(total) as order_total
            FROM member_transactions
-           WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '銷貨'
+           WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '收銀'
            GROUP BY order_number
          ) sub`,
         [prevMonthStart, prevMonthEnd]

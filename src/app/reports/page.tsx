@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import BottomNav from '@/components/BottomNav';
+import Link from 'next/link';
 
 type ReportType = 'daily' | 'weekly' | 'monthly';
 
@@ -120,6 +121,28 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="px-5 pt-12 pb-3">
         <h1 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>📊 報表</h1>
+      </div>
+
+      {/* Quick Links */}
+      <div className="px-5 mb-4">
+        <div className="grid grid-cols-2 gap-2">
+          <Link
+            href="/reports/products"
+            className="rounded-xl p-3 flex items-center gap-2"
+            style={{ background: 'var(--color-bg-card)' }}
+          >
+            <span className="text-lg">🛒</span>
+            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>商品銷售</span>
+          </Link>
+          <Link
+            href="/reports/members"
+            className="rounded-xl p-3 flex items-center gap-2"
+            style={{ background: 'var(--color-bg-card)' }}
+          >
+            <span className="text-lg">👥</span>
+            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>會員查詢</span>
+          </Link>
+        </div>
       </div>
 
       {/* Type selector */}

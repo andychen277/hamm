@@ -35,14 +35,23 @@ export interface WeeklyReport {
   active_members: number;
 }
 
+export interface StoreRevenueComparison {
+  store: string;
+  saleprodquery: number;  // 全部營收（含非會員、二手車等）
+  member_only: number;    // 會員收銀營收
+  diff: number;           // 差額（非會員 + 二手車 + 折讓等）
+}
+
 export interface MonthlyReport {
   month: string;
   total_revenue: number;
+  total_revenue_member_only: number;
   prev_month_revenue: number;
   revenue_change: number | null;
   yoy_revenue: number | null;
   yoy_change: number | null;
   stores: StoreReport[];
+  store_comparison: StoreRevenueComparison[];
   top_products: { product_name: string; quantity: number; revenue: number }[];
   member_growth: number;
   total_members: number;
@@ -66,11 +75,11 @@ async function getStoreRevenue(dateFrom: string, dateTo: string): Promise<StoreR
      LEFT JOIN LATERAL (
        SELECT SUM(total) as order_total
        FROM member_transactions
-       WHERE order_number = mt.order_number AND transaction_type = '銷貨'
+       WHERE order_number = mt.order_number AND transaction_type = '收銀'
        GROUP BY order_number
      ) sub ON true
      WHERE mt.transaction_date >= $1 AND mt.transaction_date < $2
-       AND mt.transaction_type = '銷貨'
+       AND mt.transaction_type = '收銀'
        AND mt.store IS NOT NULL AND mt.store != ''
      GROUP BY store
      ORDER BY revenue DESC`,
@@ -91,7 +100,7 @@ async function getTopProducts(dateFrom: string, dateTo: string, limit = 10) {
             SUM(total) as revenue
      FROM member_transactions
      WHERE transaction_date >= $1 AND transaction_date < $2
-       AND transaction_type = '銷貨'
+       AND transaction_type = '收銀'
        AND product_name IS NOT NULL AND product_name != ''
      GROUP BY product_name
      ORDER BY revenue DESC
@@ -116,9 +125,9 @@ export async function generateDailyReport(dateStr: string): Promise<DailyReport>
   const fmt = (d: Date) => d.toISOString().split('T')[0];
 
   const [todayRev, prevDayRev, monthCum, stores, newMembers, repairs, orders, completedRepairs] = await Promise.all([
-    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date = $1 AND transaction_type = '銷貨'`, [dateStr]),
-    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date = $1 AND transaction_type = '銷貨'`, [fmt(prevDay)]),
-    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date >= $1 AND transaction_date <= $2 AND transaction_type = '銷貨'`, [monthStart, dateStr]),
+    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date = $1 AND transaction_type = '收銀'`, [dateStr]),
+    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date = $1 AND transaction_type = '收銀'`, [fmt(prevDay)]),
+    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date >= $1 AND transaction_date <= $2 AND transaction_type = '收銀'`, [monthStart, dateStr]),
     getStoreRevenue(dateStr, fmt(nextDay)),
     query<{ count: string }>(`SELECT COUNT(*) as count FROM unified_members WHERE created_at::date = $1`, [dateStr]),
     query<{ count: string }>(`SELECT COUNT(*) as count FROM repair_status_log WHERE last_known_status NOT IN ('completed','已完修','已取車')`),
@@ -161,12 +170,12 @@ export async function generateWeeklyReport(dateStr: string): Promise<WeeklyRepor
   const fmt = (d: Date) => d.toISOString().split('T')[0];
 
   const [thisWeekRev, prevWeekRev, stores, topProducts, newMembers, activeMembers] = await Promise.all([
-    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '銷貨'`, [fmt(monday), fmt(sunday)]),
-    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '銷貨'`, [fmt(prevMonday), fmt(monday)]),
+    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '收銀'`, [fmt(monday), fmt(sunday)]),
+    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '收銀'`, [fmt(prevMonday), fmt(monday)]),
     getStoreRevenue(fmt(monday), fmt(sunday)),
     getTopProducts(fmt(monday), fmt(sunday)),
     query<{ count: string }>(`SELECT COUNT(*) as count FROM unified_members WHERE created_at >= $1 AND created_at < $2`, [fmt(monday), fmt(sunday)]),
-    query<{ count: string }>(`SELECT COUNT(DISTINCT member_phone) as count FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '銷貨'`, [fmt(monday), fmt(sunday)]),
+    query<{ count: string }>(`SELECT COUNT(DISTINCT member_phone) as count FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '收銀'`, [fmt(monday), fmt(sunday)]),
   ]);
 
   const thisWeekRevNum = Number(thisWeekRev.rows[0].total);
@@ -199,11 +208,22 @@ export async function generateMonthlyReport(dateStr: string): Promise<MonthlyRep
 
   const fmt = (d: Date) => d.toISOString().split('T')[0];
 
-  const [thisMonthRev, prevMonthRev, yoyRev, stores, topProducts, memberGrowth, totalMembers, levels] = await Promise.all([
-    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '銷貨'`, [monthStart, fmt(nextMonth)]),
-    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '銷貨'`, [fmt(prevMonth), monthStart]),
-    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '銷貨'`, [fmt(lastYearMonth), fmt(lastYearNextMonth)]),
+  const [thisMonthRev, memberOnlyRev, prevMonthRev, yoyRev, stores, srdStores, topProducts, memberGrowth, totalMembers, levels] = await Promise.all([
+    // Primary: store_revenue_daily (saleprodquery), fallback to member_transactions
+    query<{ total: string }>(`SELECT COALESCE(
+      (SELECT SUM(revenue) FROM store_revenue_daily WHERE revenue_date >= $1 AND revenue_date < $2),
+      (SELECT SUM(total) FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '收銀')
+    ) as total`, [monthStart, fmt(nextMonth)]),
+    // Member-only revenue (收銀)
+    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '收銀'`, [monthStart, fmt(nextMonth)]),
+    query<{ total: string }>(`SELECT COALESCE(
+      (SELECT SUM(revenue) FROM store_revenue_daily WHERE revenue_date >= $1 AND revenue_date < $2),
+      (SELECT SUM(total) FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '收銀')
+    ) as total`, [fmt(prevMonth), monthStart]),
+    query<{ total: string }>(`SELECT COALESCE(SUM(total),0) as total FROM member_transactions WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '收銀'`, [fmt(lastYearMonth), fmt(lastYearNextMonth)]),
     getStoreRevenue(monthStart, fmt(nextMonth)),
+    // store_revenue_daily per store
+    query<{ store: string; revenue: string }>(`SELECT store, SUM(revenue) as revenue FROM store_revenue_daily WHERE revenue_date >= $1 AND revenue_date < $2 GROUP BY store ORDER BY revenue DESC`, [monthStart, fmt(nextMonth)]),
     getTopProducts(monthStart, fmt(nextMonth)),
     query<{ count: string }>(`SELECT COUNT(*) as count FROM unified_members WHERE created_at >= $1 AND created_at < $2`, [monthStart, fmt(nextMonth)]),
     query<{ count: string }>(`SELECT COUNT(*) as count FROM unified_members`),
@@ -211,17 +231,35 @@ export async function generateMonthlyReport(dateStr: string): Promise<MonthlyRep
   ]);
 
   const thisMonthRevNum = Number(thisMonthRev.rows[0].total);
+  const memberOnlyRevNum = Number(memberOnlyRev.rows[0].total);
   const prevMonthRevNum = Number(prevMonthRev.rows[0].total);
   const yoyRevNum = Number(yoyRev.rows[0].total);
+
+  // Build store comparison: saleprodquery vs member_transactions
+  const srdMap = new Map(srdStores.rows.map(r => [r.store, Number(r.revenue)]));
+  const memberMap = new Map(stores.map(s => [s.store, s.revenue]));
+  const allStoreNames = [...new Set([...srdMap.keys(), ...memberMap.keys()])];
+  const storeComparison: StoreRevenueComparison[] = allStoreNames.map(store => {
+    const sp = srdMap.get(store) || 0;
+    const mo = memberMap.get(store) || 0;
+    return { store, saleprodquery: sp, member_only: mo, diff: sp - mo };
+  }).sort((a, b) => b.saleprodquery - a.saleprodquery);
+
+  // Use saleprodquery stores if available, otherwise member_transactions stores
+  const finalStores = srdStores.rows.length > 0
+    ? srdStores.rows.map(r => ({ store: r.store, revenue: Number(r.revenue), orders: 0, avg_order: 0 }))
+    : stores;
 
   return {
     month,
     total_revenue: thisMonthRevNum,
+    total_revenue_member_only: memberOnlyRevNum,
     prev_month_revenue: prevMonthRevNum,
     revenue_change: pctChange(thisMonthRevNum, prevMonthRevNum),
     yoy_revenue: yoyRevNum,
     yoy_change: pctChange(thisMonthRevNum, yoyRevNum),
-    stores,
+    stores: finalStores,
+    store_comparison: storeComparison,
     top_products: topProducts,
     member_growth: Number(memberGrowth.rows[0].count),
     total_members: Number(totalMembers.rows[0].count),

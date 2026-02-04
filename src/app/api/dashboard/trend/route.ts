@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
            SUM(total) as revenue
          FROM member_transactions
          WHERE transaction_date >= CURRENT_DATE - INTERVAL '${interval}'
-           AND transaction_type = '銷貨'
+           AND transaction_type = '收銀'
          GROUP BY period
          ORDER BY period`
       : `SELECT
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
            SUM(total) as revenue
          FROM member_transactions
          WHERE transaction_date >= CURRENT_DATE - INTERVAL '${interval}'
-           AND transaction_type = '銷貨'
+           AND transaction_type = '收銀'
          GROUP BY period
          ORDER BY period`;
 
