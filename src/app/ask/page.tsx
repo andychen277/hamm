@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import BottomNav from '@/components/BottomNav';
 import AskChart from '@/components/AskChart';
 
@@ -30,18 +32,34 @@ const SUGGESTION_CHIPS = [
   '本月新增會員數？',
 ];
 
-export default function AskPage() {
+function AskPageInner() {
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const initialSent = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => { scrollToBottom(); }, [messages]);
+
+  // Auto-send question from query param (from Questions page)
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q && !initialSent.current) {
+      initialSent.current = true;
+      sendQuestionDirect(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const sendQuestionDirect = (question: string) => {
+    sendQuestion(question);
+  };
 
   const sendQuestion = async (question: string) => {
     if (!question.trim() || loading) return;
@@ -254,6 +272,19 @@ export default function AskPage() {
 
       <BottomNav active="ask" />
     </div>
+  );
+}
+
+export default function AskPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-[3px] rounded-full animate-spin"
+          style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+      </div>
+    }>
+      <AskPageInner />
+    </Suspense>
   );
 }
 
