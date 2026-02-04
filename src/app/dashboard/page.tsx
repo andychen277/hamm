@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import BottomNav from '@/components/BottomNav';
+import TrendChart from '@/components/TrendChart';
+import { useCountUp } from '@/hooks/useCountUp';
 
 interface KpiItem {
   value: number;
@@ -33,20 +35,28 @@ interface StatusData {
   watchlist_pending: number;
 }
 
-function formatNumber(n: number, isPercent = false): string {
-  if (isPercent) return n.toFixed(1) + '%';
+function formatNumber(n: number): string {
   if (n >= 10000) return '$' + (n / 10000).toFixed(1) + '萬';
   return '$' + n.toLocaleString();
 }
 
-function KpiCard({ item }: { item: KpiItem }) {
+function AnimatedKpiCard({ item }: { item: KpiItem }) {
   const isPercent = item.label.includes('率');
+  const isCount = item.label.includes('會員');
+  const animated = useCountUp(item.value);
+
+  const displayValue = isPercent
+    ? animated.toFixed(1) + '%'
+    : isCount
+      ? Math.round(animated).toLocaleString()
+      : formatNumber(Math.round(animated));
+
   return (
     <div className="min-w-[160px] rounded-2xl p-4 flex-shrink-0"
       style={{ background: 'var(--color-bg-card)' }}>
       <p className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>{item.label}</p>
       <p className="text-[28px] font-bold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
-        {isPercent ? item.value.toFixed(1) + '%' : formatNumber(item.value)}
+        {displayValue}
       </p>
       <div className="flex items-center gap-1 mt-1">
         {item.change !== null && (
@@ -69,9 +79,20 @@ export default function DashboardPage() {
   const [stores, setStores] = useState<StoreData[]>([]);
   const [status, setStatus] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  // Pull-to-refresh state
+  const containerRef = useRef<HTMLDivElement>(null);
+  const startY = useRef(0);
+  const [pullDistance, setPullDistance] = useState(0);
+  const isPulling = useRef(false);
+
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     try {
       const [kpiRes, storesRes, statusRes] = await Promise.all([
         fetch('/api/dashboard/kpi'),
@@ -91,15 +112,64 @@ export default function DashboardPage() {
       console.error('Failed to fetch dashboard data:', err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Pull-to-refresh handlers
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const el = containerRef.current;
+    if (el && el.scrollTop <= 0) {
+      startY.current = e.touches[0].clientY;
+      isPulling.current = true;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isPulling.current) return;
+    const diff = e.touches[0].clientY - startY.current;
+    if (diff > 0) {
+      setPullDistance(Math.min(diff * 0.4, 80));
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (pullDistance > 50 && !refreshing) {
+      fetchData(true);
+    }
+    setPullDistance(0);
+    isPulling.current = false;
+  }, [pullDistance, refreshing, fetchData]);
+
   const maxRevenue = stores.length > 0 ? Math.max(...stores.map(s => s.revenue)) : 1;
 
   return (
-    <div className="pb-20">
+    <div
+      ref={containerRef}
+      className="pb-20 min-h-screen overflow-y-auto"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull-to-refresh indicator */}
+      <div
+        className="flex items-center justify-center overflow-hidden transition-all duration-300"
+        style={{ height: pullDistance > 0 ? pullDistance : refreshing ? 48 : 0 }}
+      >
+        <div
+          className="w-6 h-6 border-2 rounded-full"
+          style={{
+            borderColor: 'var(--color-accent)',
+            borderTopColor: 'transparent',
+            animation: refreshing || pullDistance > 50 ? 'spin 0.8s linear infinite' : 'none',
+            opacity: pullDistance > 10 || refreshing ? 1 : 0,
+            transform: `rotate(${pullDistance * 3}deg)`,
+          }}
+        />
+      </div>
+
       {/* Header */}
       <div className="px-5 pt-12 pb-4">
         <h1 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
@@ -121,7 +191,7 @@ export default function DashboardPage() {
           {kpi && (
             <div className="flex gap-3 px-5 overflow-x-auto hide-scrollbar pb-2">
               {Object.values(kpi).map((item, i) => (
-                <KpiCard key={i} item={item} />
+                <AnimatedKpiCard key={i} item={item} />
               ))}
             </div>
           )}
@@ -155,6 +225,9 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
+
+          {/* Revenue Trend Chart */}
+          <TrendChart />
 
           {/* Status Row */}
           {status && (
