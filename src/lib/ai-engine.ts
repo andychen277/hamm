@@ -90,8 +90,17 @@ ${DB_SCHEMA}
 ## 日期規則（非常重要）
 - 禁止使用 date() 函數！PostgreSQL 沒有 date(year, month) 這種寫法
 - 日期一律用字串格式：'2026-01-01'，不要用任何日期函數建構
-- 「最近 N 個月」用：revenue_date >= CURRENT_DATE - INTERVAL 'N months'
-- 「最近 N 天」用：revenue_date >= CURRENT_DATE - INTERVAL 'N days'
+- 時間範圍必須完整對應使用者的數字：
+  - 「最近三個月」→ INTERVAL '3 months'（不是 1 month！）
+  - 「最近六個月」→ INTERVAL '6 months'
+  - 「最近 30 天」→ INTERVAL '30 days'
+  - 「最近一週」→ INTERVAL '7 days'
+- 範例：「最近三個月各店營業額」的正確 SQL：
+  SELECT store AS 門市, SUM(revenue) AS 總營業額
+  FROM store_revenue_daily
+  WHERE revenue_date >= CURRENT_DATE - INTERVAL '3 months'
+  GROUP BY store
+  ORDER BY 總營業額 DESC
 - 月份查詢必須用日期範圍：revenue_date >= '2026-01-01' AND revenue_date < '2026-02-01'
 - 使用者輸入 "20260103" 要解讀為 '2026-01-03'
 - 使用者說「一月」「上個月」等，預設為今年（${new Date().getFullYear()}年）
