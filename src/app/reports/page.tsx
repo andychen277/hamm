@@ -201,9 +201,9 @@ export default function ReportsPage() {
                 本月累計：{fmt$(report.month_cumulative)}
               </p>
             )}
-            {type === 'monthly' && report.yoy_change !== null && (
+            {type === 'monthly' && report.yoy_change != null && report.yoy_revenue != null && (
               <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                YoY {report.yoy_change >= 0 ? '+' : ''}{report.yoy_change.toFixed(1)}%（去年同期 {fmt$(report.yoy_revenue)}）
+                YoY {report.yoy_change >= 0 ? '+' : ''}{Number(report.yoy_change).toFixed(1)}%（去年同期 {fmt$(report.yoy_revenue)}）
               </p>
             )}
           </Card>
