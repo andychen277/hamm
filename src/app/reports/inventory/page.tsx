@@ -4,30 +4,33 @@ import { useState, useCallback } from 'react';
 import BottomNav from '@/components/BottomNav';
 import Link from 'next/link';
 
-interface ProductSale {
+interface InventoryItem {
+  store: string;
   product_id: string;
   product_name: string;
-  total_quantity: number;
-  total_revenue: number;
-  avg_price: number;
-  stores: string;
+  price: number;
+  quantity: number;
+  vendor_code: string;
+  updated_at: string;
 }
+
+const STORE_COLORS: Record<string, string> = {
+  '台南': 'var(--color-store-tainan)',
+  '高雄': 'var(--color-store-kaohsiung)',
+  '台中': 'var(--color-store-taichung)',
+  '台北': 'var(--color-store-taipei)',
+  '美術': 'var(--color-store-meishu)',
+};
 
 function fmt$(n: number): string {
   if (n >= 10000) return '$' + (n / 10000).toFixed(1) + '萬';
   return '$' + n.toLocaleString();
 }
 
-export default function ProductsReportPage() {
+export default function InventoryReportPage() {
   const [search, setSearch] = useState('');
-  const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
-  });
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [store, setStore] = useState('all');
-  const [results, setResults] = useState<ProductSale[]>([]);
+  const [results, setResults] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
@@ -36,12 +39,10 @@ export default function ProductsReportPage() {
     setSearched(true);
     try {
       const params = new URLSearchParams({
-        start: startDate,
-        end: endDate,
         ...(search && { q: search }),
         ...(store !== 'all' && { store }),
       });
-      const res = await fetch(`/api/reports/products?${params}`);
+      const res = await fetch(`/api/reports/inventory?${params}`);
       const json = await res.json();
       if (json.success) setResults(json.data);
       else setResults([]);
@@ -50,15 +51,7 @@ export default function ProductsReportPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, startDate, endDate, store]);
-
-  const setQuickRange = (days: number) => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - days);
-    setStartDate(start.toISOString().split('T')[0]);
-    setEndDate(end.toISOString().split('T')[0]);
-  };
+  }, [search, store]);
 
   return (
     <div className="pb-20 min-h-screen">
@@ -66,7 +59,7 @@ export default function ProductsReportPage() {
       <div className="px-5 pt-12 pb-3 flex items-center gap-3">
         <Link href="/reports" className="text-xl">←</Link>
         <h1 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-          🛒 商品銷售查詢
+          📦 庫存查詢
         </h1>
       </div>
 
@@ -78,6 +71,7 @@ export default function ProductsReportPage() {
           placeholder="搜尋商品名稱..."
           value={search}
           onChange={e => setSearch(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSearch()}
           className="w-full h-11 px-4 rounded-xl text-sm outline-none"
           style={{
             background: 'var(--color-bg-card)',
@@ -85,57 +79,6 @@ export default function ProductsReportPage() {
             border: '1px solid var(--color-bg-card-alt)',
           }}
         />
-
-        {/* Date range */}
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <label className="text-[11px] mb-1 block" style={{ color: 'var(--color-text-muted)' }}>開始日期</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={e => setStartDate(e.target.value)}
-              className="w-full h-10 px-3 rounded-xl text-sm outline-none"
-              style={{
-                background: 'var(--color-bg-card)',
-                color: 'var(--color-text-primary)',
-                border: '1px solid var(--color-bg-card-alt)',
-              }}
-            />
-          </div>
-          <div className="flex-1">
-            <label className="text-[11px] mb-1 block" style={{ color: 'var(--color-text-muted)' }}>結束日期</label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={e => setEndDate(e.target.value)}
-              className="w-full h-10 px-3 rounded-xl text-sm outline-none"
-              style={{
-                background: 'var(--color-bg-card)',
-                color: 'var(--color-text-primary)',
-                border: '1px solid var(--color-bg-card-alt)',
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Quick date buttons */}
-        <div className="flex gap-2 flex-wrap">
-          {[
-            { label: '今天', days: 0 },
-            { label: '7天', days: 7 },
-            { label: '30天', days: 30 },
-            { label: '90天', days: 90 },
-          ].map(({ label, days }) => (
-            <button
-              key={label}
-              onClick={() => setQuickRange(days)}
-              className="px-3 py-1.5 rounded-lg text-xs"
-              style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-muted)' }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
 
         {/* Store filter */}
         <select
@@ -184,30 +127,34 @@ export default function ProductsReportPage() {
               共 {results.length} 項商品
             </p>
             <div className="space-y-2">
-              {results.map((p, i) => (
+              {results.map((item, i) => (
                 <Link
-                  key={p.product_id || i}
-                  href={`/reports/products/${encodeURIComponent(p.product_id)}`}
+                  key={`${item.store}-${item.product_id}-${i}`}
+                  href={`/reports/products/${encodeURIComponent(item.product_id)}`}
                   className="block rounded-xl p-3"
                   style={{ background: 'var(--color-bg-card)' }}
                 >
                   <div className="flex justify-between items-start mb-1">
                     <span className="text-sm font-medium flex-1 mr-2" style={{ color: 'var(--color-text-primary)' }}>
-                      {p.product_name}
+                      {item.product_name}
                     </span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>
-                      {fmt$(p.total_revenue)}
+                    <span
+                      className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                      style={{ background: STORE_COLORS[item.store] || 'var(--color-accent)', color: '#fff' }}
+                    >
+                      {item.store}
                     </span>
                   </div>
-                  <div className="flex justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                    <span>數量: {p.total_quantity}</span>
-                    <span>均價: {fmt$(p.avg_price)}</span>
+                  <div className="flex justify-between text-xs mt-2" style={{ color: 'var(--color-text-muted)' }}>
+                    <span>售價: {fmt$(item.price)}</span>
+                    <span className="font-bold" style={{ color: 'var(--color-positive)' }}>
+                      庫存: {item.quantity}
+                    </span>
                   </div>
-                  {p.stores && (
-                    <div className="text-[11px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                      門市: {p.stores}
-                    </div>
-                  )}
+                  <div className="flex justify-between text-[11px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    <span>{item.product_id}</span>
+                    {item.vendor_code && <span>廠商: {item.vendor_code}</span>}
+                  </div>
                 </Link>
               ))}
             </div>

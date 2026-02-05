@@ -125,7 +125,7 @@ export default function ReportsPage() {
 
       {/* Quick Links */}
       <div className="px-5 mb-4">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <Link
             href="/reports/products"
             className="rounded-xl p-3 flex items-center gap-2"
@@ -141,6 +141,30 @@ export default function ReportsPage() {
           >
             <span className="text-lg">👥</span>
             <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>會員查詢</span>
+          </Link>
+          <Link
+            href="/reports/inventory"
+            className="rounded-xl p-3 flex items-center gap-2"
+            style={{ background: 'var(--color-bg-card)' }}
+          >
+            <span className="text-lg">📦</span>
+            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>庫存查詢</span>
+          </Link>
+          <Link
+            href="/reports/purchases"
+            className="rounded-xl p-3 flex items-center gap-2"
+            style={{ background: 'var(--color-bg-card)' }}
+          >
+            <span className="text-lg">📥</span>
+            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>進貨查詢</span>
+          </Link>
+          <Link
+            href="/reports/repairs"
+            className="rounded-xl p-3 flex items-center gap-2"
+            style={{ background: 'var(--color-bg-card)' }}
+          >
+            <span className="text-lg">🔧</span>
+            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>維修查詢</span>
           </Link>
         </div>
       </div>

@@ -1,0 +1,257 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
+import BottomNav from '@/components/BottomNav';
+import Link from 'next/link';
+
+interface ProductDetail {
+  product_id: string;
+  product_name: string;
+  inventory: {
+    store: string;
+    price: number;
+    quantity: number;
+    vendor_code: string;
+  }[];
+  sales_by_store: {
+    store: string;
+    total_qty: number;
+    total_revenue: number;
+    order_count: number;
+    last_sale_date: string;
+  }[];
+  total_sales: {
+    total_qty: number;
+    total_revenue: number;
+    order_count: number;
+    first_sale_date: string;
+    last_sale_date: string;
+  } | null;
+  recent_transactions: {
+    date: string;
+    store: string;
+    quantity: number;
+    price: number;
+    total: number;
+    order_number: string;
+    member_name: string;
+  }[];
+  purchases: {
+    supplier: string;
+    unit_cost: number;
+    purchase_qty: number;
+    purchase_cost: number;
+    period_start: string;
+    period_end: string;
+  }[];
+}
+
+const STORE_COLORS: Record<string, string> = {
+  '台南': 'var(--color-store-tainan)',
+  '高雄': 'var(--color-store-kaohsiung)',
+  '台中': 'var(--color-store-taichung)',
+  '台北': 'var(--color-store-taipei)',
+  '美術': 'var(--color-store-meishu)',
+};
+
+function fmt$(n: number): string {
+  if (n >= 10000) return '$' + (n / 10000).toFixed(1) + '萬';
+  return '$' + n.toLocaleString();
+}
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl p-4 mb-3" style={{ background: 'var(--color-bg-card)' }}>
+      <h3 className="text-[13px] font-semibold mb-3" style={{ color: 'var(--color-text-primary)' }}>{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+export default function ProductDetailPage() {
+  const params = useParams();
+  const productId = decodeURIComponent(params.id as string);
+  const [data, setData] = useState<ProductDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await fetch(`/api/reports/products/${encodeURIComponent(productId)}`);
+        const json = await res.json();
+        if (json.success) setData(json.data);
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, [productId]);
+
+  const totalStock = data?.inventory.reduce((sum, i) => sum + i.quantity, 0) || 0;
+
+  return (
+    <div className="pb-20 min-h-screen">
+      {/* Header */}
+      <div className="px-5 pt-12 pb-3 flex items-center gap-3">
+        <Link href="/reports/products" className="text-xl">←</Link>
+        <h1 className="text-lg font-bold flex-1" style={{ color: 'var(--color-text-primary)' }}>
+          商品詳情
+        </h1>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-40">
+          <div className="w-7 h-7 border-[3px] rounded-full animate-spin"
+            style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+        </div>
+      ) : !data ? (
+        <div className="text-center py-10">
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>找不到商品資料</p>
+        </div>
+      ) : (
+        <div className="px-5">
+          {/* Product Name */}
+          <div className="rounded-2xl p-4 mb-3" style={{ background: 'var(--color-bg-card)' }}>
+            <h2 className="text-base font-bold mb-2" style={{ color: 'var(--color-text-primary)' }}>
+              {data.product_name}
+            </h2>
+            <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>
+              {data.product_id}
+            </p>
+          </div>
+
+          {/* Inventory by Store */}
+          <Card title="📦 各門市庫存">
+            {data.inventory.length === 0 ? (
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>無庫存資料</p>
+            ) : (
+              <div className="space-y-2">
+                {data.inventory.map(inv => (
+                  <div key={inv.store} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: STORE_COLORS[inv.store] || '#64748b' }} />
+                      <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{inv.store}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>{inv.quantity}</span>
+                      <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>{fmt$(inv.price)}</span>
+                    </div>
+                  </div>
+                ))}
+                <div className="border-t pt-2 mt-2" style={{ borderColor: 'var(--color-bg-card-alt)' }}>
+                  <div className="flex justify-between text-sm">
+                    <span style={{ color: 'var(--color-text-muted)' }}>總庫存</span>
+                    <span className="font-bold" style={{ color: 'var(--color-text-primary)' }}>{totalStock}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </Card>
+
+          {/* Sales Summary */}
+          {data.total_sales && data.total_sales.total_qty > 0 && (
+            <Card title="📈 銷售統計">
+              <div className="grid grid-cols-3 gap-3 text-center mb-3">
+                <div>
+                  <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>
+                    {fmt$(data.total_sales.total_revenue)}
+                  </p>
+                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>總營收</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-accent)' }}>
+                    {data.total_sales.total_qty}
+                  </p>
+                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>總銷量</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
+                    {data.total_sales.order_count}
+                  </p>
+                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>訂單數</p>
+                </div>
+              </div>
+              <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                最近銷售: {data.total_sales.last_sale_date}
+              </p>
+            </Card>
+          )}
+
+          {/* Sales by Store (last 90 days) */}
+          {data.sales_by_store.length > 0 && (
+            <Card title="🏪 各門市銷售（近90天）">
+              <div className="space-y-2">
+                {data.sales_by_store.map(s => (
+                  <div key={s.store} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: STORE_COLORS[s.store] || '#64748b' }} />
+                      <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{s.store}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-medium tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
+                        {fmt$(s.total_revenue)}
+                      </span>
+                      <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>
+                        {s.total_qty}件
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Purchase History */}
+          {data.purchases.length > 0 && (
+            <Card title="📥 進貨記錄">
+              <div className="space-y-2">
+                {data.purchases.map((p, i) => (
+                  <div key={i} className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                    <div className="flex justify-between">
+                      <span>{p.supplier}</span>
+                      <span className="tabular-nums">{fmt$(p.purchase_cost)}</span>
+                    </div>
+                    <div className="flex justify-between" style={{ color: 'var(--color-text-muted)' }}>
+                      <span>數量: {p.purchase_qty}</span>
+                      <span>單位成本: {fmt$(p.unit_cost)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Recent Transactions */}
+          {data.recent_transactions.length > 0 && (
+            <Card title="📋 近期交易（最近20筆）">
+              <div className="space-y-2">
+                {data.recent_transactions.map((tx, i) => (
+                  <div key={i} className="flex justify-between items-center text-xs py-1 border-b" style={{ borderColor: 'var(--color-bg-card-alt)' }}>
+                    <div>
+                      <span style={{ color: 'var(--color-text-muted)' }}>{tx.date}</span>
+                      <span
+                        className="ml-2 px-1.5 py-0.5 rounded text-[10px]"
+                        style={{ background: STORE_COLORS[tx.store] || 'var(--color-accent)', color: '#fff' }}
+                      >
+                        {tx.store}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span style={{ color: 'var(--color-text-primary)' }}>{tx.quantity}件</span>
+                      <span className="ml-2 tabular-nums" style={{ color: 'var(--color-positive)' }}>{fmt$(tx.total)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      <BottomNav active="reports" />
+    </div>
+  );
+}

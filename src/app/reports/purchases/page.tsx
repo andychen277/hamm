@@ -4,13 +4,25 @@ import { useState, useCallback } from 'react';
 import BottomNav from '@/components/BottomNav';
 import Link from 'next/link';
 
-interface ProductSale {
+interface PurchaseItem {
   product_id: string;
   product_name: string;
-  total_quantity: number;
-  total_revenue: number;
-  avg_price: number;
-  stores: string;
+  supplier: string;
+  unit_price: number;
+  unit_cost: number;
+  total_cost: number;
+  total_qty: number;
+  stock_tainan: number;
+  stock_chongming: number;
+  stock_kaohsiung: number;
+  stock_meishu: number;
+  stock_taichung: number;
+  stock_taipei: number;
+  total_sales: number;
+  total_sales_qty: number;
+  sales_ratio: number;
+  period_start: string;
+  period_end: string;
 }
 
 function fmt$(n: number): string {
@@ -18,7 +30,7 @@ function fmt$(n: number): string {
   return '$' + n.toLocaleString();
 }
 
-export default function ProductsReportPage() {
+export default function PurchasesReportPage() {
   const [search, setSearch] = useState('');
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
@@ -27,7 +39,7 @@ export default function ProductsReportPage() {
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [store, setStore] = useState('all');
-  const [results, setResults] = useState<ProductSale[]>([]);
+  const [results, setResults] = useState<PurchaseItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
@@ -41,7 +53,7 @@ export default function ProductsReportPage() {
         ...(search && { q: search }),
         ...(store !== 'all' && { store }),
       });
-      const res = await fetch(`/api/reports/products?${params}`);
+      const res = await fetch(`/api/reports/purchases?${params}`);
       const json = await res.json();
       if (json.success) setResults(json.data);
       else setResults([]);
@@ -66,18 +78,19 @@ export default function ProductsReportPage() {
       <div className="px-5 pt-12 pb-3 flex items-center gap-3">
         <Link href="/reports" className="text-xl">←</Link>
         <h1 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-          🛒 商品銷售查詢
+          📥 進貨查詢
         </h1>
       </div>
 
       {/* Search Form */}
       <div className="px-5 space-y-3">
-        {/* Product search */}
+        {/* Product/Supplier search */}
         <input
           type="text"
-          placeholder="搜尋商品名稱..."
+          placeholder="搜尋商品名稱或供應商..."
           value={search}
           onChange={e => setSearch(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSearch()}
           className="w-full h-11 px-4 rounded-xl text-sm outline-none"
           style={{
             background: 'var(--color-bg-card)',
@@ -176,38 +189,68 @@ export default function ProductsReportPage() {
           </div>
         ) : searched && results.length === 0 ? (
           <div className="text-center py-10">
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>無符合條件的商品</p>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>無符合條件的進貨資料</p>
           </div>
         ) : results.length > 0 && (
           <>
             <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
-              共 {results.length} 項商品
+              共 {results.length} 筆進貨
             </p>
             <div className="space-y-2">
-              {results.map((p, i) => (
+              {results.map((item, i) => (
                 <Link
-                  key={p.product_id || i}
-                  href={`/reports/products/${encodeURIComponent(p.product_id)}`}
+                  key={`${item.product_id}-${i}`}
+                  href={`/reports/products/${encodeURIComponent(item.product_id)}`}
                   className="block rounded-xl p-3"
                   style={{ background: 'var(--color-bg-card)' }}
                 >
                   <div className="flex justify-between items-start mb-1">
                     <span className="text-sm font-medium flex-1 mr-2" style={{ color: 'var(--color-text-primary)' }}>
-                      {p.product_name}
+                      {item.product_name}
                     </span>
                     <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>
-                      {fmt$(p.total_revenue)}
+                      {fmt$(item.total_cost)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                    <span>數量: {p.total_quantity}</span>
-                    <span>均價: {fmt$(p.avg_price)}</span>
+                  <div className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                    供應商: {item.supplier || '-'}
                   </div>
-                  {p.stores && (
-                    <div className="text-[11px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                      門市: {p.stores}
-                    </div>
-                  )}
+                  <div className="flex justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                    <span>進貨量: {item.total_qty}</span>
+                    <span>單位成本: {fmt$(item.unit_cost)}</span>
+                  </div>
+                  {/* Stock by store */}
+                  <div className="flex flex-wrap gap-2 mt-2 text-[11px]">
+                    {item.stock_tainan > 0 && (
+                      <span className="px-1.5 py-0.5 rounded" style={{ background: 'var(--color-store-tainan)', color: '#fff' }}>
+                        台南 {item.stock_tainan}
+                      </span>
+                    )}
+                    {item.stock_kaohsiung > 0 && (
+                      <span className="px-1.5 py-0.5 rounded" style={{ background: 'var(--color-store-kaohsiung)', color: '#000' }}>
+                        高雄 {item.stock_kaohsiung}
+                      </span>
+                    )}
+                    {item.stock_taichung > 0 && (
+                      <span className="px-1.5 py-0.5 rounded" style={{ background: 'var(--color-store-taichung)', color: '#fff' }}>
+                        台中 {item.stock_taichung}
+                      </span>
+                    )}
+                    {item.stock_taipei > 0 && (
+                      <span className="px-1.5 py-0.5 rounded" style={{ background: 'var(--color-store-taipei)', color: '#fff' }}>
+                        台北 {item.stock_taipei}
+                      </span>
+                    )}
+                    {item.stock_meishu > 0 && (
+                      <span className="px-1.5 py-0.5 rounded" style={{ background: 'var(--color-store-meishu)', color: '#fff' }}>
+                        美術 {item.stock_meishu}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex justify-between text-[11px] mt-2" style={{ color: 'var(--color-text-muted)' }}>
+                    <span>{item.product_id}</span>
+                    <span>進銷比: {item.sales_ratio.toFixed(2)}</span>
+                  </div>
                 </Link>
               ))}
             </div>
