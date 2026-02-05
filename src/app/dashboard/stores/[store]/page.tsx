@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import BottomNav from '@/components/BottomNav';
 
 interface PeriodData {
@@ -128,7 +129,11 @@ export default function StoreDetailPage() {
           {/* 統計卡片 2x2 */}
           <div className="grid grid-cols-2 gap-3 mb-3">
             {/* 今日營收 */}
-            <div className="rounded-2xl p-4" style={{ background: 'var(--color-bg-card)' }}>
+            <Link
+              href={`/dashboard/stores/${encodeURIComponent(store)}/today`}
+              className="rounded-2xl p-4 active:opacity-70 transition-opacity"
+              style={{ background: 'var(--color-bg-card)' }}
+            >
               <p className="text-[11px] mb-1" style={{ color: 'var(--color-text-muted)' }}>今日營收</p>
               <p className="text-xl font-bold tabular-nums" style={{ color: storeColor }}>
                 {fmt$(data.today.revenue)}
@@ -136,10 +141,14 @@ export default function StoreDetailPage() {
               <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
                 {data.today.date}
               </p>
-            </div>
+            </Link>
 
             {/* 本週營收 */}
-            <div className="rounded-2xl p-4" style={{ background: 'var(--color-bg-card)' }}>
+            <Link
+              href={`/dashboard/stores/${encodeURIComponent(store)}/this-week`}
+              className="rounded-2xl p-4 active:opacity-70 transition-opacity"
+              style={{ background: 'var(--color-bg-card)' }}
+            >
               <p className="text-[11px] mb-1" style={{ color: 'var(--color-text-muted)' }}>本週營收</p>
               <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>
                 {fmt$(data.this_week.revenue)}
@@ -147,10 +156,14 @@ export default function StoreDetailPage() {
               <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
                 {formatDateRange(data.this_week.start, data.this_week.end)}
               </p>
-            </div>
+            </Link>
 
             {/* 上週營收 */}
-            <div className="rounded-2xl p-4" style={{ background: 'var(--color-bg-card)' }}>
+            <Link
+              href={`/dashboard/stores/${encodeURIComponent(store)}/last-week`}
+              className="rounded-2xl p-4 active:opacity-70 transition-opacity"
+              style={{ background: 'var(--color-bg-card)' }}
+            >
               <p className="text-[11px] mb-1" style={{ color: 'var(--color-text-muted)' }}>上週營收</p>
               <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
                 {fmt$(data.last_week.revenue)}
@@ -158,10 +171,14 @@ export default function StoreDetailPage() {
               <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
                 {formatDateRange(data.last_week.start, data.last_week.end)}
               </p>
-            </div>
+            </Link>
 
             {/* 本月營收 */}
-            <div className="rounded-2xl p-4" style={{ background: 'var(--color-bg-card)' }}>
+            <Link
+              href={`/dashboard/stores/${encodeURIComponent(store)}/this-month`}
+              className="rounded-2xl p-4 active:opacity-70 transition-opacity"
+              style={{ background: 'var(--color-bg-card)' }}
+            >
               <p className="text-[11px] mb-1" style={{ color: 'var(--color-text-muted)' }}>本月營收</p>
               <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--color-accent)' }}>
                 {fmt$(data.this_month.revenue)}
@@ -169,11 +186,15 @@ export default function StoreDetailPage() {
               <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
                 {formatDateRange(data.this_month.start, data.this_month.end)}
               </p>
-            </div>
+            </Link>
           </div>
 
           {/* 上月營收 - 較大的卡片 */}
-          <div className="rounded-2xl p-4 mb-4" style={{ background: 'var(--color-bg-card)' }}>
+          <Link
+            href={`/dashboard/stores/${encodeURIComponent(store)}/last-month`}
+            className="block rounded-2xl p-4 mb-4 active:opacity-70 transition-opacity"
+            style={{ background: 'var(--color-bg-card)' }}
+          >
             <p className="text-[11px] mb-1" style={{ color: 'var(--color-text-muted)' }}>上月營收</p>
             <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
               {fmt$(data.last_month.revenue)}
@@ -181,7 +202,7 @@ export default function StoreDetailPage() {
             <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
               {formatDateRange(data.last_month.start, data.last_month.end)}
             </p>
-          </div>
+          </Link>
 
           {/* 自訂日期查詢 */}
           <div className="rounded-2xl p-4" style={{ background: 'var(--color-bg-card)' }}>
@@ -235,14 +256,18 @@ export default function StoreDetailPage() {
 
             {/* 查詢結果 */}
             {customResult && (
-              <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--color-bg-card-alt)' }}>
+              <Link
+                href={`/dashboard/stores/${encodeURIComponent(store)}/custom?start=${customResult.start}&end=${customResult.end}`}
+                className="block mt-4 pt-4 border-t active:opacity-70 transition-opacity"
+                style={{ borderColor: 'var(--color-bg-card-alt)' }}
+              >
                 <p className="text-[11px] mb-1" style={{ color: 'var(--color-text-muted)' }}>
                   {formatDateRange(customResult.start, customResult.end)} 營收
                 </p>
                 <p className="text-2xl font-bold tabular-nums" style={{ color: storeColor }}>
                   {fmt$(customResult.revenue)}
                 </p>
-              </div>
+              </Link>
             )}
           </div>
         </div>
