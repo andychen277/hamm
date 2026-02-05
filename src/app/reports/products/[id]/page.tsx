@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 import Link from 'next/link';
 
@@ -20,22 +20,6 @@ interface ProductDetail {
     total_revenue: number;
     order_count: number;
     last_sale_date: string;
-  }[];
-  total_sales: {
-    total_qty: number;
-    total_revenue: number;
-    order_count: number;
-    first_sale_date: string;
-    last_sale_date: string;
-  } | null;
-  recent_transactions: {
-    date: string;
-    store: string;
-    quantity: number;
-    price: number;
-    total: number;
-    order_number: string;
-    member_name: string;
   }[];
   purchases: {
     supplier: string;
@@ -71,6 +55,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 export default function ProductDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const productId = decodeURIComponent(params.id as string);
   const [data, setData] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,7 +81,7 @@ export default function ProductDetailPage() {
     <div className="pb-20 min-h-screen">
       {/* Header */}
       <div className="px-5 pt-12 pb-3 flex items-center gap-3">
-        <Link href="/reports/products" className="text-xl">←</Link>
+        <button onClick={() => router.back()} className="text-xl">←</button>
         <h1 className="text-lg font-bold flex-1" style={{ color: 'var(--color-text-primary)' }}>
           商品詳情
         </h1>
@@ -151,54 +136,32 @@ export default function ProductDetailPage() {
             )}
           </Card>
 
-          {/* Sales Summary */}
-          {data.total_sales && data.total_sales.total_qty > 0 && (
-            <Card title="📈 銷售統計">
-              <div className="grid grid-cols-3 gap-3 text-center mb-3">
-                <div>
-                  <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>
-                    {fmt$(data.total_sales.total_revenue)}
-                  </p>
-                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>總營收</p>
-                </div>
-                <div>
-                  <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-accent)' }}>
-                    {data.total_sales.total_qty}
-                  </p>
-                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>總銷量</p>
-                </div>
-                <div>
-                  <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
-                    {data.total_sales.order_count}
-                  </p>
-                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>訂單數</p>
-                </div>
-              </div>
-              <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                最近銷售: {data.total_sales.last_sale_date}
-              </p>
-            </Card>
-          )}
-
-          {/* Sales by Store (last 90 days) */}
+          {/* Sales by Store (last 90 days) - Clickable */}
           {data.sales_by_store.length > 0 && (
             <Card title="🏪 各門市銷售（近90天）">
               <div className="space-y-2">
                 {data.sales_by_store.map(s => (
-                  <div key={s.store} className="flex items-center justify-between">
+                  <Link
+                    key={s.store}
+                    href={`/reports/products/${encodeURIComponent(productId)}/store/${encodeURIComponent(s.store)}`}
+                    className="flex items-center justify-between py-1 -mx-1 px-1 rounded-lg active:bg-white/5"
+                  >
                     <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 rounded-full" style={{ background: STORE_COLORS[s.store] || '#64748b' }} />
                       <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{s.store}</span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-sm font-medium tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
-                        {fmt$(s.total_revenue)}
-                      </span>
-                      <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>
-                        {s.total_qty}件
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <span className="text-sm font-medium tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
+                          {fmt$(s.total_revenue)}
+                        </span>
+                        <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>
+                          {s.total_qty}件
+                        </span>
+                      </div>
+                      <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>›</span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </Card>
@@ -217,31 +180,6 @@ export default function ProductDetailPage() {
                     <div className="flex justify-between" style={{ color: 'var(--color-text-muted)' }}>
                       <span>數量: {p.purchase_qty}</span>
                       <span>單位成本: {fmt$(p.unit_cost)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {/* Recent Transactions */}
-          {data.recent_transactions.length > 0 && (
-            <Card title="📋 近期交易（最近20筆）">
-              <div className="space-y-2">
-                {data.recent_transactions.map((tx, i) => (
-                  <div key={i} className="flex justify-between items-center text-xs py-1 border-b" style={{ borderColor: 'var(--color-bg-card-alt)' }}>
-                    <div>
-                      <span style={{ color: 'var(--color-text-muted)' }}>{tx.date}</span>
-                      <span
-                        className="ml-2 px-1.5 py-0.5 rounded text-[10px]"
-                        style={{ background: STORE_COLORS[tx.store] || 'var(--color-accent)', color: '#fff' }}
-                      >
-                        {tx.store}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span style={{ color: 'var(--color-text-primary)' }}>{tx.quantity}件</span>
-                      <span className="ml-2 tabular-nums" style={{ color: 'var(--color-positive)' }}>{fmt$(tx.total)}</span>
                     </div>
                   </div>
                 ))}

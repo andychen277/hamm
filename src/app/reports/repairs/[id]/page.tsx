@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 import Link from 'next/link';
 
@@ -70,6 +70,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 export default function RepairDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const repairId = decodeURIComponent(params.id as string);
   const [data, setData] = useState<RepairDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,7 +94,7 @@ export default function RepairDetailPage() {
     <div className="pb-20 min-h-screen">
       {/* Header */}
       <div className="px-5 pt-12 pb-3 flex items-center gap-3">
-        <Link href="/reports/repairs" className="text-xl">←</Link>
+        <button onClick={() => router.back()} className="text-xl">←</button>
         <h1 className="text-lg font-bold flex-1" style={{ color: 'var(--color-text-primary)' }}>
           維修詳情
         </h1>
