@@ -6,7 +6,7 @@ const tabs = [
   { key: 'dashboard', label: '總覽', icon: '🏠', href: '/dashboard' },
   { key: 'ask', label: '提問', icon: '💬', href: '/ask' },
   { key: 'reports', label: '報表', icon: '📊', href: '/reports' },
-  { key: 'questions', label: '題庫', icon: '💡', href: '/questions' },
+  { key: 'todo', label: '任務', icon: '📋', href: '/todo' },
 ];
 
 export default function BottomNav({ active }: { active: string }) {

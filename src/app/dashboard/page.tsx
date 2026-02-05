@@ -6,6 +6,16 @@ import BottomNav from '@/components/BottomNav';
 import TrendChart from '@/components/TrendChart';
 import { useCountUp } from '@/hooks/useCountUp';
 
+// KPI 對應的連結
+const KPI_LINKS: Record<string, string> = {
+  '今日營收': '/dashboard/revenue/today',
+  '本月營收': '/dashboard/revenue/this-month',
+  '總會員數': '/reports/members',
+  '本月新會員': '/reports/members?filter=new',
+  'LINE 綁定率': '/reports/members?filter=line',
+  '平均客單價': '/dashboard/revenue/this-month',
+};
+
 interface KpiItem {
   value: number;
   change: number | null;
@@ -33,7 +43,7 @@ interface StoreData {
 interface StatusData {
   active_repairs: number;
   pending_orders: number;
-  watchlist_pending: number;
+  todo_pending: number;
 }
 
 function formatNumber(n: number): string {
@@ -52,9 +62,14 @@ function AnimatedKpiCard({ item }: { item: KpiItem }) {
       ? Math.round(animated).toLocaleString()
       : formatNumber(Math.round(animated));
 
+  const href = KPI_LINKS[item.label] || '/dashboard';
+
   return (
-    <div className="min-w-[160px] rounded-2xl p-4 flex-shrink-0"
-      style={{ background: 'var(--color-bg-card)' }}>
+    <Link
+      href={href}
+      className="min-w-[160px] rounded-2xl p-4 flex-shrink-0 active:opacity-70 transition-opacity"
+      style={{ background: 'var(--color-bg-card)' }}
+    >
       <p className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>{item.label}</p>
       <p className="text-[28px] font-bold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
         {displayValue}
@@ -71,7 +86,7 @@ function AnimatedKpiCard({ item }: { item: KpiItem }) {
           <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{item.compare}</span>
         )}
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -237,24 +252,36 @@ export default function DashboardPage() {
           {/* Status Row */}
           {status && (
             <div className="flex gap-3 mx-5 mt-4">
-              <div className="flex-1 rounded-2xl p-3 text-center" style={{ background: 'var(--color-bg-card)' }}>
+              <Link
+                href="/reports/repairs?status=維修中"
+                className="flex-1 rounded-2xl p-3 text-center active:opacity-70 transition-opacity"
+                style={{ background: 'var(--color-bg-card)' }}
+              >
                 <p className="text-[22px] font-bold tabular-nums" style={{ color: 'var(--color-warning)' }}>
                   {status.active_repairs}
                 </p>
                 <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>維修中</p>
-              </div>
-              <div className="flex-1 rounded-2xl p-3 text-center" style={{ background: 'var(--color-bg-card)' }}>
+              </Link>
+              <Link
+                href="/reports/purchases"
+                className="flex-1 rounded-2xl p-3 text-center active:opacity-70 transition-opacity"
+                style={{ background: 'var(--color-bg-card)' }}
+              >
                 <p className="text-[22px] font-bold tabular-nums" style={{ color: 'var(--color-accent)' }}>
                   {status.pending_orders}
                 </p>
                 <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>待到貨</p>
-              </div>
-              <div className="flex-1 rounded-2xl p-3 text-center" style={{ background: 'var(--color-bg-card)' }}>
+              </Link>
+              <Link
+                href="/todo"
+                className="flex-1 rounded-2xl p-3 text-center active:opacity-70 transition-opacity"
+                style={{ background: 'var(--color-bg-card)' }}
+              >
                 <p className="text-[22px] font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>
-                  {status.watchlist_pending}
+                  {status.todo_pending}
                 </p>
-                <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>關注待通知</p>
-              </div>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>待辦任務</p>
+              </Link>
             </div>
           )}
         </>
