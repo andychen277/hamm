@@ -10,6 +10,8 @@ export async function GET(req: NextRequest) {
 
     let sql = `
       SELECT id, name, store, role,
+             line_user_id,
+             line_user_id IS NOT NULL as line_bound,
              telegram_chat_id IS NOT NULL as telegram_bound,
              telegram_username,
              is_active, created_at

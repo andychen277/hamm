@@ -105,6 +105,28 @@ export async function GET(
       }));
     }
 
+    // Check if customer has LINE binding
+    let hasLineBinding = false;
+    if (repair.customer_phone) {
+      const bindingResult = await query(
+        `SELECT 1 FROM line_bindings
+         WHERE phone = $1 AND bind_status = 'verified'
+         LIMIT 1`,
+        [repair.customer_phone]
+      );
+      if (bindingResult.rows.length === 0) {
+        const memberResult = await query(
+          `SELECT 1 FROM unified_members
+           WHERE phone = $1 AND line_user_id IS NOT NULL
+           LIMIT 1`,
+          [repair.customer_phone]
+        );
+        hasLineBinding = memberResult.rows.length > 0;
+      } else {
+        hasLineBinding = true;
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -124,6 +146,7 @@ export async function GET(
         created_at: repair.created_at,
         customer_repairs: customerRepairs,
         customer_transactions: customerTransactions,
+        has_line_binding: hasLineBinding,
       },
     });
   } catch (error) {

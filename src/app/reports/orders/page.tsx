@@ -252,75 +252,92 @@ function OrdersContent() {
               共 {results.length} 筆客訂
             </p>
             <div className="space-y-2">
-              {results.map((item, i) => (
-                <div
-                  key={`${item.order_id}-${i}`}
-                  className="rounded-xl p-3"
-                  style={{ background: 'var(--color-bg-card)' }}
-                >
-                  {/* Header: Store, Status, Date */}
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span
-                      className="text-[11px] px-2 py-0.5 rounded-full font-medium"
-                      style={{ background: STORE_COLORS[item.store] || 'var(--color-accent)', color: '#fff' }}
-                    >
-                      {item.store}
-                    </span>
-                    <span
-                      className="text-[11px] px-2 py-0.5 rounded-full font-medium"
-                      style={{ background: STATUS_COLORS[item.status] || 'var(--color-text-muted)', color: '#fff' }}
-                    >
-                      {item.status}
-                    </span>
-                    <span className="text-[11px] ml-auto" style={{ color: 'var(--color-text-muted)' }}>
-                      {item.order_date}
-                    </span>
-                  </div>
-
-                  {/* Customer info */}
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                        {item.customer_name || '(無姓名)'}
+              {results.map((item, i) => {
+                const content = (
+                  <>
+                    {/* Header: Store, Status, Date */}
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span
+                        className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                        style={{ background: STORE_COLORS[item.store] || 'var(--color-accent)', color: '#fff' }}
+                      >
+                        {item.store}
                       </span>
-                      {item.customer_phone && (
-                        <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>
-                          {item.customer_phone}
-                        </span>
-                      )}
+                      <span
+                        className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                        style={{ background: STATUS_COLORS[item.status] || 'var(--color-text-muted)', color: '#fff' }}
+                      >
+                        {item.status}
+                      </span>
+                      <span className="text-[11px] ml-auto" style={{ color: 'var(--color-text-muted)' }}>
+                        {item.order_date}
+                      </span>
                     </div>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>
-                      {fmt$(item.total_amount)}
-                    </span>
+
+                    {/* Customer info */}
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                          {item.customer_name || '(無姓名)'}
+                        </span>
+                        {item.customer_phone && (
+                          <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>
+                            {item.customer_phone}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>
+                        {fmt$(item.total_amount)}
+                      </span>
+                    </div>
+
+                    {/* Product info */}
+                    {item.product_info && (
+                      <p className="text-xs mb-2 line-clamp-2" style={{ color: 'var(--color-text-secondary)' }}>
+                        {item.product_info}
+                      </p>
+                    )}
+
+                    {/* Payment info */}
+                    <div className="flex justify-between text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                      <span>訂金: {fmt$(item.deposit_paid)}</span>
+                      <span style={{ color: item.balance > 0 ? 'var(--color-warning)' : 'var(--color-text-muted)' }}>
+                        尾款: {fmt$(item.balance)}
+                      </span>
+                    </div>
+
+                    {/* Callback mode: Select button */}
+                    {isCallback && (
+                      <button
+                        onClick={() => handleSelect(item)}
+                        className="w-full mt-3 py-2 rounded-lg text-sm font-medium transition-opacity active:opacity-70"
+                        style={{ background: 'var(--color-positive)', color: '#fff' }}
+                      >
+                        選擇此客訂單
+                      </button>
+                    )}
+                  </>
+                );
+
+                return isCallback ? (
+                  <div
+                    key={`${item.order_id}-${i}`}
+                    className="rounded-xl p-3"
+                    style={{ background: 'var(--color-bg-card)' }}
+                  >
+                    {content}
                   </div>
-
-                  {/* Product info */}
-                  {item.product_info && (
-                    <p className="text-xs mb-2 line-clamp-2" style={{ color: 'var(--color-text-secondary)' }}>
-                      {item.product_info}
-                    </p>
-                  )}
-
-                  {/* Payment info */}
-                  <div className="flex justify-between text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                    <span>訂金: {fmt$(item.deposit_paid)}</span>
-                    <span style={{ color: item.balance > 0 ? 'var(--color-warning)' : 'var(--color-text-muted)' }}>
-                      尾款: {fmt$(item.balance)}
-                    </span>
-                  </div>
-
-                  {/* Callback mode: Select button */}
-                  {isCallback && (
-                    <button
-                      onClick={() => handleSelect(item)}
-                      className="w-full mt-3 py-2 rounded-lg text-sm font-medium transition-opacity active:opacity-70"
-                      style={{ background: 'var(--color-positive)', color: '#fff' }}
-                    >
-                      選擇此客訂單
-                    </button>
-                  )}
-                </div>
-              ))}
+                ) : (
+                  <Link
+                    key={`${item.order_id}-${i}`}
+                    href={`/reports/orders/${encodeURIComponent(item.order_id)}`}
+                    className="block rounded-xl p-3 transition-opacity active:opacity-80"
+                    style={{ background: 'var(--color-bg-card)' }}
+                  >
+                    {content}
+                  </Link>
+                );
+              })}
             </div>
           </>
         )}

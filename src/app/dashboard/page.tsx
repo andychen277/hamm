@@ -11,7 +11,7 @@ const KPI_LINKS: Record<string, string> = {
   '今日營收': '/dashboard/revenue/today',
   '本月營收': '/dashboard/revenue/this-month',
   '總會員數': '/reports/members',
-  '本月新會員': '/reports/members?filter=new',
+  '本月新會員': '/dashboard/new-members',
   'LINE 綁定率': '/reports/members?filter=line',
   '平均客單價': '/dashboard/revenue/this-month',
 };

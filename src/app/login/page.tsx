@@ -8,11 +8,12 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const error = searchParams.get('error');
+  const hint = searchParams.get('hint');
   const [mode, setMode] = useState<'main' | 'pin'>('main');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(
-    error === 'not_authorized' ? '此帳號無權限存取' :
+    error === 'not_authorized' ? `此帳號無權限存取${hint ? `\n你的 LINE ID: ${hint}` : ''}` :
     error === 'token_failed' ? 'LINE 登入失敗，請重試' :
     error === 'profile_failed' ? '無法取得 LINE 資料' :
     error === 'no_code' ? '登入流程中斷' :
@@ -147,7 +148,16 @@ function LoginForm() {
       {errorMsg && (
         <div className="w-full max-w-sm mb-6 p-3 rounded-xl text-center"
           style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
-          <p className="text-sm" style={{ color: 'var(--color-negative)' }}>{errorMsg}</p>
+          <p className="text-sm whitespace-pre-line" style={{ color: 'var(--color-negative)' }}>{errorMsg}</p>
+          {hint && (
+            <button
+              onClick={() => navigator.clipboard.writeText(hint)}
+              className="mt-2 text-xs px-3 py-1 rounded-lg"
+              style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}
+            >
+              📋 複製 LINE ID
+            </button>
+          )}
         </div>
       )}
 

@@ -197,6 +197,22 @@ export default function ReportsPage() {
         <p className="text-[11px] mb-2" style={{ color: 'var(--color-text-muted)' }}>單據建立</p>
         <div className="grid grid-cols-3 gap-2">
           <Link
+            href="/orders/create"
+            className="rounded-xl p-3 flex items-center gap-2"
+            style={{ background: 'var(--color-bg-card)' }}
+          >
+            <span className="text-lg">📋</span>
+            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>新增客訂</span>
+          </Link>
+          <Link
+            href="/repairs/create"
+            className="rounded-xl p-3 flex items-center gap-2"
+            style={{ background: 'var(--color-bg-card)' }}
+          >
+            <span className="text-lg">🔧</span>
+            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>新增維修</span>
+          </Link>
+          <Link
             href="/todo/create"
             className="rounded-xl p-3 flex items-center gap-2"
             style={{ background: 'var(--color-bg-card)' }}

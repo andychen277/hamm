@@ -24,6 +24,7 @@ export async function GET() {
       prevMonthRevenue,
       totalMembers,
       newMembersThisMonth,
+      newMembersPrevMonth,
       lineBindingRate,
       avgOrderValue,
       prevAvgOrderValue,
@@ -58,10 +59,25 @@ export async function GET() {
       ),
       // Total members
       query<{ count: string }>('SELECT COUNT(*) as count FROM unified_members'),
-      // New members this month
+      // New members this month (based on first transaction date, not created_at)
       query<{ count: string }>(
-        `SELECT COUNT(*) as count FROM unified_members WHERE created_at >= $1`,
+        `SELECT COUNT(DISTINCT member_phone) as count FROM (
+           SELECT member_phone, MIN(transaction_date) as first_date
+           FROM member_transactions
+           WHERE member_phone IS NOT NULL AND member_phone != ''
+           GROUP BY member_phone
+         ) sub WHERE first_date >= $1`,
         [monthStart]
+      ),
+      // New members previous month
+      query<{ count: string }>(
+        `SELECT COUNT(DISTINCT member_phone) as count FROM (
+           SELECT member_phone, MIN(transaction_date) as first_date
+           FROM member_transactions
+           WHERE member_phone IS NOT NULL AND member_phone != ''
+           GROUP BY member_phone
+         ) sub WHERE first_date >= $1 AND first_date < $2`,
+        [prevMonthStart, prevMonthEnd]
       ),
       // LINE binding rate
       query<{ total: string; bound: string }>(
@@ -128,9 +144,9 @@ export async function GET() {
         },
         new_members: {
           value: Number(newMembersThisMonth.rows[0].count),
-          change: null,
+          change: pctChange(Number(newMembersThisMonth.rows[0].count), Number(newMembersPrevMonth.rows[0].count)),
           label: '本月新會員',
-          compare: '',
+          compare: 'vs 上月',
         },
         line_bindind_rate: {
           value: total > 0 ? (bound / total) * 100 : 0,

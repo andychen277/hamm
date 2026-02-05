@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { signToken, isAdmin, TOKEN_NAME, TOKEN_MAX_AGE } from '@/lib/auth';
+import { signToken, TOKEN_NAME, TOKEN_MAX_AGE } from '@/lib/auth';
+import { query } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
@@ -42,17 +43,33 @@ export async function GET(req: NextRequest) {
     const lineUserId = profile.userId;
     const displayName = profile.displayName;
 
-    // Check whitelist
-    if (!isAdmin(lineUserId)) {
-      return NextResponse.redirect(`${appUrl}/login?error=not_authorized`);
+    // Log for debugging
+    console.log('🔐 LINE Login attempt:', { lineUserId, displayName });
+
+    // Check staff table
+    const result = await query(
+      `SELECT id, name, store, role FROM staff WHERE line_user_id = $1 AND is_active = true`,
+      [lineUserId]
+    );
+
+    if (result.rows.length === 0) {
+      // Not registered - show LINE ID so admin can add them
+      return NextResponse.redirect(`${appUrl}/login?error=not_authorized&hint=${lineUserId}`);
     }
 
-    // Issue JWT
+    const staff = result.rows[0];
+
+    // Determine store access based on role
+    const storeAccess = staff.role === 'owner' || staff.role === 'manager'
+      ? ['all']
+      : [staff.store];
+
+    // Issue JWT with staff info
     const jwt = signToken({
       sub: lineUserId,
-      name: displayName,
-      role: 'owner',
-      store_access: ['all'],
+      name: staff.name,
+      role: staff.role,
+      store_access: storeAccess,
     });
 
     const response = NextResponse.redirect(`${appUrl}/dashboard`);
@@ -65,7 +82,8 @@ export async function GET(req: NextRequest) {
     });
 
     return response;
-  } catch {
+  } catch (error) {
+    console.error('LINE callback error:', error);
     return NextResponse.redirect(`${appUrl}/login?error=unknown`);
   }
 }
