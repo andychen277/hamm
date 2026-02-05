@@ -40,7 +40,7 @@ export async function GET(
     const order = orderResult.rows[0];
 
     // Get customer's other orders
-    let customerOrders: object[] = [];
+    let customerOrders: Record<string, unknown>[] = [];
     if (order.customer_phone) {
       const ordersResult = await query(
         `SELECT
@@ -60,7 +60,7 @@ export async function GET(
     }
 
     // Get customer's recent transactions
-    let customerTransactions: object[] = [];
+    let customerTransactions: Record<string, unknown>[] = [];
     if (order.customer_phone) {
       const txResult = await query(
         `SELECT
