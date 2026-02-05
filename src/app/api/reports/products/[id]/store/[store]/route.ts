@@ -10,12 +10,20 @@ export async function GET(
     const productId = decodeURIComponent(id);
     const storeName = decodeURIComponent(store);
 
-    // Get product name
+    // Get product name from inventory or member_transactions
     const productResult = await query(`
       SELECT product_name FROM inventory WHERE product_id = $1 LIMIT 1
     `, [productId]);
 
-    const productName = productResult.rows[0]?.product_name || productId;
+    let productName = productResult.rows[0]?.product_name;
+
+    // If not in inventory, try member_transactions
+    if (!productName) {
+      const txProductResult = await query(`
+        SELECT product_name FROM member_transactions WHERE product_id = $1 LIMIT 1
+      `, [productId]);
+      productName = txProductResult.rows[0]?.product_name || productId;
+    }
 
     // Get all orders for this product at this store (last 90 days)
     const ordersResult = await query(`
@@ -35,62 +43,50 @@ export async function GET(
       ORDER BY transaction_date DESC, order_number DESC
     `, [productId, storeName]);
 
-    // Get all products in each order
-    const orderNumbers = ordersResult.rows.map(r => r.order_number).filter(Boolean);
+    // For each order, get other products in the SAME order (same store, same date, same order_number)
+    const orders = [];
 
-    let orderProducts: Record<string, Array<{
-      product_id: string;
-      product_name: string;
-      quantity: number;
-      price: number;
-      total: number;
-    }>> = {};
-
-    if (orderNumbers.length > 0) {
-      // Get all products for these orders
-      const productsResult = await query(`
+    for (const orderRow of ordersResult.rows) {
+      // Get all products for this specific order at this store on this date
+      const orderProductsResult = await query(`
         SELECT
-          order_number,
           product_id,
           product_name,
           quantity,
           price,
           total
         FROM member_transactions
-        WHERE order_number = ANY($1)
+        WHERE order_number = $1
+          AND store = $2
+          AND transaction_date = $3
           AND transaction_type = '收銀'
-        ORDER BY order_number, total DESC
-      `, [orderNumbers]);
+        ORDER BY total DESC
+      `, [orderRow.order_number, storeName, orderRow.transaction_date]);
 
-      // Group products by order
-      for (const row of productsResult.rows) {
-        if (!orderProducts[row.order_number]) {
-          orderProducts[row.order_number] = [];
-        }
-        orderProducts[row.order_number].push({
-          product_id: row.product_id,
-          product_name: row.product_name,
-          quantity: Number(row.quantity),
-          price: Number(row.price),
-          total: Number(row.total),
-        });
-      }
+      const allProducts = orderProductsResult.rows.map(p => ({
+        product_id: p.product_id,
+        product_name: p.product_name,
+        quantity: Number(p.quantity),
+        price: Number(p.price),
+        total: Number(p.total),
+      }));
+
+      const orderTotal = allProducts.reduce((sum, p) => sum + p.total, 0);
+
+      orders.push({
+        order_number: orderRow.order_number,
+        date: orderRow.transaction_date,
+        member_name: orderRow.member_name || '(未知)',
+        member_phone: orderRow.member_phone || '',
+        this_product: {
+          quantity: Number(orderRow.quantity),
+          price: Number(orderRow.price),
+          total: Number(orderRow.total),
+        },
+        all_products: allProducts,
+        order_total: orderTotal,
+      });
     }
-
-    // Build response with orders and their products
-    const orders = ordersResult.rows.map(r => ({
-      order_number: r.order_number,
-      date: r.transaction_date,
-      member_name: r.member_name || '(未知)',
-      member_phone: r.member_phone || '',
-      this_product: {
-        quantity: Number(r.quantity),
-        price: Number(r.price),
-        total: Number(r.total),
-      },
-      all_products: orderProducts[r.order_number] || [],
-      order_total: (orderProducts[r.order_number] || []).reduce((sum, p) => sum + p.total, 0),
-    }));
 
     // Calculate totals
     const totalRevenue = orders.reduce((sum, o) => sum + o.this_product.total, 0);

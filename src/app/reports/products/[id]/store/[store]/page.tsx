@@ -178,48 +178,58 @@ export default function StoreSalesPage() {
                       className="border-b pb-3 last:border-b-0 last:pb-0"
                       style={{ borderColor: 'var(--color-bg-card-alt)' }}
                     >
-                      {/* Order Header - Clickable */}
-                      <button
-                        onClick={() => toggleOrder(order.order_number)}
-                        className="w-full text-left"
-                      >
-                        <div className="flex justify-between items-start mb-1">
-                          <div>
-                            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                              {formatDate(order.date)}
-                            </span>
-                            <span className="text-xs font-mono ml-2" style={{ color: 'var(--color-text-muted)' }}>
-                              {order.order_number?.slice(-8) || '-'}
-                            </span>
-                          </div>
-                          <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>
-                            {fmt$(order.this_product.total)}
+                      {/* Order Header */}
+                      <div className="flex justify-between items-start mb-1">
+                        <div>
+                          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                            {formatDate(order.date)}
+                          </span>
+                          <span className="text-xs font-mono ml-2" style={{ color: 'var(--color-text-muted)' }}>
+                            {order.order_number?.slice(-8) || '-'}
                           </span>
                         </div>
+                        <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>
+                          {fmt$(order.this_product.total)}
+                        </span>
+                      </div>
 
-                        <div className="flex justify-between items-center">
-                          <div>
+                      <div className="flex justify-between items-center">
+                        {/* Member name - clickable link */}
+                        <div>
+                          {order.member_phone ? (
+                            <Link
+                              href={`/reports/members/${encodeURIComponent(order.member_phone)}`}
+                              className="text-sm font-medium"
+                              style={{ color: 'var(--color-accent)' }}
+                            >
+                              {order.member_name}
+                            </Link>
+                          ) : (
                             <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
                               {order.member_name}
                             </span>
-                            {order.member_phone && (
-                              <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>
-                                {order.member_phone}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                              {order.this_product.quantity}件
+                          )}
+                          {order.member_phone && (
+                            <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>
+                              {order.member_phone}
                             </span>
-                            {otherProducts.length > 0 && (
-                              <span className="text-xs" style={{ color: 'var(--color-accent)' }}>
-                                +{otherProducts.length}項 {isExpanded ? '▲' : '▼'}
-                              </span>
-                            )}
-                          </div>
+                          )}
                         </div>
-                      </button>
+                        {/* Expand button */}
+                        <button
+                          onClick={() => toggleOrder(order.order_number)}
+                          className="flex items-center gap-1 py-1 px-2 -mr-2"
+                        >
+                          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                            {order.this_product.quantity}件
+                          </span>
+                          {otherProducts.length > 0 && (
+                            <span className="text-xs" style={{ color: 'var(--color-accent)' }}>
+                              +{otherProducts.length}項 {isExpanded ? '▲' : '▼'}
+                            </span>
+                          )}
+                        </button>
+                      </div>
 
                       {/* Expanded: Other products in this order */}
                       {isExpanded && otherProducts.length > 0 && (
