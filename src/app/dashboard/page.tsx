@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import BottomNav from '@/components/BottomNav';
 import TrendChart from '@/components/TrendChart';
 import { useCountUp } from '@/hooks/useCountUp';
@@ -203,7 +204,11 @@ export default function DashboardPage() {
             </h2>
             <div className="space-y-3">
               {stores.map((store) => (
-                <div key={store.store}>
+                <Link
+                  key={store.store}
+                  href={`/dashboard/stores/${encodeURIComponent(store.store)}`}
+                  className="block active:opacity-70 transition-opacity"
+                >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                       {store.name}
@@ -221,7 +226,7 @@ export default function DashboardPage() {
                       }}
                     />
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
