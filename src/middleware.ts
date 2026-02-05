@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
 const TOKEN_NAME = 'hamm_token';
-const PUBLIC_PATHS = ['/login', '/api/auth/pin-login', '/api/auth/line-login', '/api/auth/line-callback', '/api/auth/liff-login', '/api/health'];
+const PUBLIC_PATHS = ['/login', '/api/auth/pin-login', '/api/auth/line-login', '/api/auth/line-callback', '/api/auth/liff-login', '/api/health', '/api/telegram/webhook'];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

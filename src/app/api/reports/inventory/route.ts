@@ -24,9 +24,15 @@ export async function GET(req: NextRequest) {
     let paramIndex = 1;
 
     if (q) {
-      sql += ` AND product_name ILIKE $${paramIndex}`;
-      params.push(`%${q}%`);
-      paramIndex++;
+      // 支援逗號分隔的多關鍵字搜尋
+      const keywords = q.split(',').map(k => k.trim()).filter(k => k.length > 0);
+
+      for (const keyword of keywords) {
+        // 每個關鍵字同時搜尋 product_name 和 product_id
+        sql += ` AND (product_name ILIKE $${paramIndex} OR product_id ILIKE $${paramIndex})`;
+        params.push(`%${keyword}%`);
+        paramIndex++;
+      }
     }
 
     if (store && store !== 'all') {

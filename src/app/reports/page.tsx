@@ -119,8 +119,15 @@ export default function ReportsPage() {
   return (
     <div className="pb-20 min-h-screen">
       {/* Header */}
-      <div className="px-5 pt-12 pb-3">
+      <div className="px-5 pt-12 pb-3 flex items-center justify-between">
         <h1 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>📊 報表</h1>
+        <Link
+          href="/settings"
+          className="p-2 rounded-lg"
+          style={{ color: 'var(--color-text-muted)' }}
+        >
+          ⚙️
+        </Link>
       </div>
 
       {/* Quick Links */}
@@ -133,6 +140,14 @@ export default function ReportsPage() {
           >
             <span className="text-lg">🛒</span>
             <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>商品銷售</span>
+          </Link>
+          <Link
+            href="/reports/history"
+            className="rounded-xl p-3 flex items-center gap-2"
+            style={{ background: 'var(--color-bg-card)' }}
+          >
+            <span className="text-lg">📈</span>
+            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>歷史銷售</span>
           </Link>
           <Link
             href="/reports/members"
@@ -165,6 +180,29 @@ export default function ReportsPage() {
           >
             <span className="text-lg">🔧</span>
             <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>維修查詢</span>
+          </Link>
+          <Link
+            href="/reports/orders"
+            className="rounded-xl p-3 flex items-center gap-2"
+            style={{ background: 'var(--color-bg-card)' }}
+          >
+            <span className="text-lg">📋</span>
+            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>客訂查詢</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* Document Creation Section */}
+      <div className="px-5 mb-4">
+        <p className="text-[11px] mb-2" style={{ color: 'var(--color-text-muted)' }}>單據建立</p>
+        <div className="grid grid-cols-3 gap-2">
+          <Link
+            href="/todo/create"
+            className="rounded-xl p-3 flex items-center gap-2"
+            style={{ background: 'var(--color-bg-card)' }}
+          >
+            <span className="text-lg">📝</span>
+            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>新增任務</span>
           </Link>
         </div>
       </div>

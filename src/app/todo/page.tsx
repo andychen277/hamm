@@ -82,8 +82,8 @@ export default function TodoPage() {
 
   return (
     <div className="pb-20 min-h-screen">
-      {/* Header */}
-      <div className="px-5 pt-12 pb-3 flex items-center justify-between">
+      {/* Header - extra top padding for Safari safe area */}
+      <div className="px-5 pt-14 pb-3 flex items-center justify-between" style={{ paddingTop: 'max(3.5rem, env(safe-area-inset-top, 3.5rem))' }}>
         <h1 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
           📋 任務管理
         </h1>

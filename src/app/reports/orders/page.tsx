@@ -5,18 +5,17 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 import Link from 'next/link';
 
-interface RepairItem {
-  repair_id: string;
+interface OrderItem {
+  order_id: string;
   store: string;
-  open_date: string;
+  order_date: string;
+  employee_code: string;
   customer_name: string;
   customer_phone: string;
-  repair_desc: string;
-  deposit: number;
-  store_note: string;
-  vendor_quote: number;
-  vendor_note: string;
-  assigned_to: string;
+  product_info: string;
+  total_amount: number;
+  deposit_paid: number;
+  balance: number;
   status: string;
   updated_at: string;
 }
@@ -31,12 +30,9 @@ const STORE_COLORS: Record<string, string> = {
 
 const STATUS_COLORS: Record<string, string> = {
   '開單': 'var(--color-warning)',
-  '維修中': 'var(--color-accent)',
-  '已完成': 'var(--color-positive)',
-  '已完修': 'var(--color-positive)',
-  '待取件': '#9B5DE5',
-  '已取車': 'var(--color-text-muted)',
-  '已取消': 'var(--color-negative)',
+  '通知': 'var(--color-accent)',
+  '結案': 'var(--color-positive)',
+  '作廢': 'var(--color-negative)',
 };
 
 function fmt$(n: number): string {
@@ -44,13 +40,13 @@ function fmt$(n: number): string {
   return '$' + n.toLocaleString();
 }
 
-function RepairsContent() {
+function OrdersContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   // Callback 模式參數
   const isCallback = searchParams.get('callback') === 'true';
-  const callbackType = searchParams.get('callback_type') || 'repair';
+  const callbackType = searchParams.get('callback_type') || 'order';
   const returnUrl = searchParams.get('return_url') || '/todo/create';
 
   const [search, setSearch] = useState('');
@@ -62,7 +58,7 @@ function RepairsContent() {
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [store, setStore] = useState('all');
   const [status, setStatus] = useState('all');
-  const [results, setResults] = useState<RepairItem[]>([]);
+  const [results, setResults] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
@@ -77,7 +73,7 @@ function RepairsContent() {
         ...(store !== 'all' && { store }),
         ...(status !== 'all' && { status }),
       });
-      const res = await fetch(`/api/reports/repairs?${params}`);
+      const res = await fetch(`/api/reports/orders?${params}`);
       const json = await res.json();
       if (json.success) setResults(json.data);
       else setResults([]);
@@ -96,16 +92,18 @@ function RepairsContent() {
     setEndDate(end.toISOString().split('T')[0]);
   };
 
-  // Callback 模式：選擇維修單
-  const handleSelect = (item: RepairItem) => {
+  // Callback 模式：選擇客訂單
+  const handleSelect = (item: OrderItem) => {
     const data = {
       type: callbackType,
-      repair_id: item.repair_id,
+      order_id: item.order_id,
       customer_name: item.customer_name,
       customer_phone: item.customer_phone,
-      repair_desc: item.repair_desc,
+      product_info: item.product_info,
       store: item.store,
       status: item.status,
+      total_amount: item.total_amount,
+      balance: item.balance,
     };
     sessionStorage.setItem('callback_data', JSON.stringify(data));
     router.push(`${returnUrl}?callback_success=true`);
@@ -117,7 +115,7 @@ function RepairsContent() {
       <div className="px-5 pt-12 pb-3 flex items-center gap-3">
         <button onClick={() => router.back()} className="text-xl">←</button>
         <h1 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-          🔧 維修查詢 {isCallback && <span className="text-sm font-normal">(選擇維修單)</span>}
+          📦 客訂查詢 {isCallback && <span className="text-sm font-normal">(選擇客訂單)</span>}
         </h1>
       </div>
 
@@ -126,7 +124,7 @@ function RepairsContent() {
         {/* Customer search */}
         <input
           type="text"
-          placeholder="搜尋客戶姓名或電話..."
+          placeholder="搜尋客戶姓名、電話或商品..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSearch()}
@@ -220,10 +218,9 @@ function RepairsContent() {
           >
             <option value="all">全部狀態</option>
             <option value="開單">開單</option>
-            <option value="維修中">維修中</option>
-            <option value="已完修">已完修</option>
-            <option value="待取件">待取件</option>
-            <option value="已取車">已取車</option>
+            <option value="通知">通知</option>
+            <option value="結案">結案</option>
+            <option value="作廢">作廢</option>
           </select>
         </div>
 
@@ -247,146 +244,80 @@ function RepairsContent() {
           </div>
         ) : searched && results.length === 0 ? (
           <div className="text-center py-10">
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>無符合條件的維修記錄</p>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>無符合條件的客訂記錄</p>
           </div>
         ) : results.length > 0 && (
           <>
             <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
-              共 {results.length} 筆維修
+              共 {results.length} 筆客訂
             </p>
             <div className="space-y-2">
               {results.map((item, i) => (
                 <div
-                  key={`${item.repair_id}-${i}`}
+                  key={`${item.order_id}-${i}`}
                   className="rounded-xl p-3"
                   style={{ background: 'var(--color-bg-card)' }}
                 >
-                  {isCallback ? (
-                    <>
-                      {/* Header: ID, Store, Status */}
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className="text-[11px] font-mono px-1.5 py-0.5 rounded" style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-muted)' }}>
-                          {item.repair_id.slice(-8)}
-                        </span>
-                        <span
-                          className="text-[11px] px-2 py-0.5 rounded-full font-medium"
-                          style={{ background: STORE_COLORS[item.store] || 'var(--color-accent)', color: '#fff' }}
-                        >
-                          {item.store}
-                        </span>
-                        <span
-                          className="text-[11px] px-2 py-0.5 rounded-full font-medium"
-                          style={{ background: STATUS_COLORS[item.status] || 'var(--color-text-muted)', color: '#fff' }}
-                        >
-                          {item.status}
-                        </span>
-                        <span className="text-[11px] ml-auto" style={{ color: 'var(--color-text-muted)' }}>
-                          {item.open_date}
-                        </span>
-                      </div>
-
-                      {/* Customer info */}
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                            {item.customer_name || '(無姓名)'}
-                          </span>
-                          {item.customer_phone && (
-                            <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>
-                              {item.customer_phone}
-                            </span>
-                          )}
-                        </div>
-                        {item.deposit > 0 && (
-                          <span className="text-xs font-medium" style={{ color: 'var(--color-positive)' }}>
-                            暫付 {fmt$(item.deposit)}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Repair description */}
-                      {item.repair_desc && (
-                        <p className="text-xs mb-2 line-clamp-2" style={{ color: 'var(--color-text-secondary)' }}>
-                          {item.repair_desc}
-                        </p>
-                      )}
-
-                      {/* Select button */}
-                      <button
-                        onClick={() => handleSelect(item)}
-                        className="w-full mt-2 py-2 rounded-lg text-sm font-medium transition-opacity active:opacity-70"
-                        style={{ background: 'var(--color-positive)', color: '#fff' }}
-                      >
-                        選擇此維修單
-                      </button>
-                    </>
-                  ) : (
-                    <Link
-                      href={`/reports/repairs/${encodeURIComponent(item.repair_id)}`}
-                      className="block"
+                  {/* Header: Store, Status, Date */}
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <span
+                      className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                      style={{ background: STORE_COLORS[item.store] || 'var(--color-accent)', color: '#fff' }}
                     >
-                      {/* Header: ID, Store, Status */}
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className="text-[11px] font-mono px-1.5 py-0.5 rounded" style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-muted)' }}>
-                          {item.repair_id.slice(-8)}
-                        </span>
-                        <span
-                          className="text-[11px] px-2 py-0.5 rounded-full font-medium"
-                          style={{ background: STORE_COLORS[item.store] || 'var(--color-accent)', color: '#fff' }}
-                        >
-                          {item.store}
-                        </span>
-                        <span
-                          className="text-[11px] px-2 py-0.5 rounded-full font-medium"
-                          style={{ background: STATUS_COLORS[item.status] || 'var(--color-text-muted)', color: '#fff' }}
-                        >
-                          {item.status}
-                        </span>
-                        <span className="text-[11px] ml-auto" style={{ color: 'var(--color-text-muted)' }}>
-                          {item.open_date}
-                        </span>
-                      </div>
+                      {item.store}
+                    </span>
+                    <span
+                      className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                      style={{ background: STATUS_COLORS[item.status] || 'var(--color-text-muted)', color: '#fff' }}
+                    >
+                      {item.status}
+                    </span>
+                    <span className="text-[11px] ml-auto" style={{ color: 'var(--color-text-muted)' }}>
+                      {item.order_date}
+                    </span>
+                  </div>
 
-                      {/* Customer info */}
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                            {item.customer_name || '(無姓名)'}
-                          </span>
-                          {item.customer_phone && (
-                            <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>
-                              {item.customer_phone}
-                            </span>
-                          )}
-                        </div>
-                        {item.deposit > 0 && (
-                          <span className="text-xs font-medium" style={{ color: 'var(--color-positive)' }}>
-                            暫付 {fmt$(item.deposit)}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Repair description */}
-                      {item.repair_desc && (
-                        <p className="text-xs mb-2 line-clamp-2" style={{ color: 'var(--color-text-secondary)' }}>
-                          {item.repair_desc}
-                        </p>
+                  {/* Customer info */}
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                        {item.customer_name || '(無姓名)'}
+                      </span>
+                      {item.customer_phone && (
+                        <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>
+                          {item.customer_phone}
+                        </span>
                       )}
+                    </div>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>
+                      {fmt$(item.total_amount)}
+                    </span>
+                  </div>
 
-                      {/* Assigned to */}
-                      {item.assigned_to && (
-                        <div className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                          負責: {item.assigned_to}
-                        </div>
-                      )}
+                  {/* Product info */}
+                  {item.product_info && (
+                    <p className="text-xs mb-2 line-clamp-2" style={{ color: 'var(--color-text-secondary)' }}>
+                      {item.product_info}
+                    </p>
+                  )}
 
-                      {/* Vendor quote */}
-                      {item.vendor_quote > 0 && (
-                        <div className="text-[11px] mt-1" style={{ color: 'var(--color-warning)' }}>
-                          廠商報價: {fmt$(item.vendor_quote)}
-                        </div>
-                      )}
-                    </Link>
+                  {/* Payment info */}
+                  <div className="flex justify-between text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                    <span>訂金: {fmt$(item.deposit_paid)}</span>
+                    <span style={{ color: item.balance > 0 ? 'var(--color-warning)' : 'var(--color-text-muted)' }}>
+                      尾款: {fmt$(item.balance)}
+                    </span>
+                  </div>
+
+                  {/* Callback mode: Select button */}
+                  {isCallback && (
+                    <button
+                      onClick={() => handleSelect(item)}
+                      className="w-full mt-3 py-2 rounded-lg text-sm font-medium transition-opacity active:opacity-70"
+                      style={{ background: 'var(--color-positive)', color: '#fff' }}
+                    >
+                      選擇此客訂單
+                    </button>
                   )}
                 </div>
               ))}
@@ -400,7 +331,7 @@ function RepairsContent() {
   );
 }
 
-export default function RepairsReportPage() {
+export default function OrdersReportPage() {
   return (
     <Suspense fallback={
       <div className="pb-20 min-h-screen flex items-center justify-center">
@@ -408,7 +339,7 @@ export default function RepairsReportPage() {
           style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
       </div>
     }>
-      <RepairsContent />
+      <OrdersContent />
     </Suspense>
   );
 }

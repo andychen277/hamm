@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 import Link from 'next/link';
 
@@ -34,7 +35,15 @@ function fmt$(n: number): string {
   return '$' + n.toLocaleString();
 }
 
-export default function MembersReportPage() {
+function MembersContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Callback 模式參數
+  const isCallback = searchParams.get('callback') === 'true';
+  const callbackType = searchParams.get('callback_type') || 'member';
+  const returnUrl = searchParams.get('return_url') || '/todo/create';
+
   const [search, setSearch] = useState('');
   const [member, setMember] = useState<MemberInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -67,13 +76,26 @@ export default function MembersReportPage() {
     if (e.key === 'Enter') handleSearch();
   };
 
+  // Callback 模式：選擇會員
+  const handleSelect = (m: MemberInfo) => {
+    const data = {
+      type: callbackType,
+      phone: m.phone,
+      name: m.name,
+      member_level: m.member_level,
+      total_spent: m.total_spent,
+    };
+    sessionStorage.setItem('callback_data', JSON.stringify(data));
+    router.push(`${returnUrl}?callback_success=true`);
+  };
+
   return (
     <div className="pb-20 min-h-screen">
       {/* Header */}
       <div className="px-5 pt-12 pb-3 flex items-center gap-3">
-        <Link href="/reports" className="text-xl">←</Link>
+        <button onClick={() => router.back()} className="text-xl">←</button>
         <h1 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-          👥 會員交易查詢
+          👥 會員交易查詢 {isCallback && <span className="text-sm font-normal">(選擇會員)</span>}
         </h1>
       </div>
 
@@ -154,40 +176,55 @@ export default function MembersReportPage() {
                   </p>
                 </div>
               </div>
+
+              {/* Callback 模式：選擇按鈕 */}
+              {isCallback && (
+                <button
+                  onClick={() => handleSelect(member)}
+                  className="w-full mt-4 py-2.5 rounded-xl text-sm font-medium transition-opacity active:opacity-70"
+                  style={{ background: 'var(--color-positive)', color: '#fff' }}
+                >
+                  選擇此會員
+                </button>
+              )}
             </div>
 
-            {/* Transaction History */}
-            <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-              交易紀錄（最近 50 筆）
-            </h3>
-            {member.transactions.length === 0 ? (
-              <p className="text-sm text-center py-4" style={{ color: 'var(--color-text-muted)' }}>
-                無交易紀錄
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {member.transactions.map((t, i) => (
-                  <div
-                    key={i}
-                    className="rounded-xl p-3"
-                    style={{ background: 'var(--color-bg-card)' }}
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="text-sm flex-1 mr-2" style={{ color: 'var(--color-text-primary)' }}>
-                        {t.product_name}
-                      </span>
-                      <span className="text-sm font-medium tabular-nums"
-                        style={{ color: t.transaction_type === '銷退' ? 'var(--color-negative)' : 'var(--color-positive)' }}>
-                        {t.transaction_type === '銷退' ? '-' : ''}{fmt$(t.total)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                      <span>{t.transaction_date} · {t.store}</span>
-                      <span>x{t.quantity}</span>
-                    </div>
+            {/* Transaction History - 非 callback 模式才顯示 */}
+            {!isCallback && (
+              <>
+                <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                  交易紀錄（最近 50 筆）
+                </h3>
+                {member.transactions.length === 0 ? (
+                  <p className="text-sm text-center py-4" style={{ color: 'var(--color-text-muted)' }}>
+                    無交易紀錄
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {member.transactions.map((t, i) => (
+                      <div
+                        key={i}
+                        className="rounded-xl p-3"
+                        style={{ background: 'var(--color-bg-card)' }}
+                      >
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-sm flex-1 mr-2" style={{ color: 'var(--color-text-primary)' }}>
+                            {t.product_name}
+                          </span>
+                          <span className="text-sm font-medium tabular-nums"
+                            style={{ color: t.transaction_type === '銷退' ? 'var(--color-negative)' : 'var(--color-positive)' }}>
+                            {t.transaction_type === '銷退' ? '-' : ''}{fmt$(t.total)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                          <span>{t.transaction_date} · {t.store}</span>
+                          <span>x{t.quantity}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -195,5 +232,18 @@ export default function MembersReportPage() {
 
       <BottomNav active="reports" />
     </div>
+  );
+}
+
+export default function MembersReportPage() {
+  return (
+    <Suspense fallback={
+      <div className="pb-20 min-h-screen flex items-center justify-center">
+        <div className="w-7 h-7 border-[3px] rounded-full animate-spin"
+          style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+      </div>
+    }>
+      <MembersContent />
+    </Suspense>
   );
 }

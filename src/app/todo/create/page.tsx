@@ -1,13 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import BottomNav from '@/components/BottomNav';
 
 const STORES = ['台南', '高雄', '台中', '台北', '美術'];
 
-export default function CreateTodoPage() {
+function CreateTodoForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -24,6 +23,56 @@ export default function CreateTodoPage() {
   const [relatedName, setRelatedName] = useState(preRelatedName);
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Restore draft from session storage on mount
+  useEffect(() => {
+    const draft = sessionStorage.getItem('todo_draft');
+    if (draft) {
+      try {
+        const data = JSON.parse(draft);
+        if (data.creator) setCreator(data.creator);
+        if (data.store) setStore(data.store);
+        if (data.assignee) setAssignee(data.assignee);
+        if (data.description) setDescription(data.description);
+      } catch {
+        // ignore
+      }
+      sessionStorage.removeItem('todo_draft');
+    }
+  }, []);
+
+  // Receive callback data from quick-select pages
+  useEffect(() => {
+    const callbackData = sessionStorage.getItem('callback_data');
+    if (callbackData) {
+      try {
+        const data = JSON.parse(callbackData);
+        // Format related name based on type
+        let name = '';
+        if (data.type === 'inventory' || data.type === 'stock') {
+          name = `${data.product_name} (${data.store})`;
+          setRelatedId(data.product_id);
+        } else if (data.type === 'member') {
+          name = `${data.name} (${data.phone})`;
+          setRelatedId(data.phone);
+        } else if (data.type === 'product') {
+          name = data.product_name;
+          setRelatedId(data.product_id);
+        } else if (data.type === 'repair') {
+          name = `維修單 ${data.repair_id}`;
+          setRelatedId(data.repair_id);
+        } else if (data.type === 'customer_order' || data.type === 'order') {
+          name = `客訂 ${data.customer_name} - ${data.product_info?.substring(0, 30) || ''}`;
+          setRelatedId(data.order_id);
+        }
+        setRelatedName(name || data.product_name || data.name || '');
+        setTaskType(data.type);
+      } catch {
+        // ignore
+      }
+      sessionStorage.removeItem('callback_data');
+    }
+  }, []);
 
   const handleSubmit = async () => {
     if (!creator.trim()) {
@@ -68,28 +117,12 @@ export default function CreateTodoPage() {
       description,
     }));
     // Navigate to selection page with callback
-    router.push(`${path}?todo_callback=true&type=${type}`);
+    const callbackUrl = '/todo/create';
+    router.push(`${path}?callback=true&callback_type=${type}&return_url=${encodeURIComponent(callbackUrl)}`);
   };
 
-  // Restore draft from session storage on mount
-  useState(() => {
-    const draft = sessionStorage.getItem('todo_draft');
-    if (draft) {
-      try {
-        const data = JSON.parse(draft);
-        if (data.creator) setCreator(data.creator);
-        if (data.store) setStore(data.store);
-        if (data.assignee) setAssignee(data.assignee);
-        if (data.description) setDescription(data.description);
-      } catch {
-        // ignore
-      }
-      sessionStorage.removeItem('todo_draft');
-    }
-  });
-
   return (
-    <div className="pb-20 min-h-screen">
+    <>
       {/* Header */}
       <div className="px-5 pt-12 pb-3 flex items-center gap-3">
         <button onClick={() => router.back()} className="text-xl">←</button>
@@ -165,7 +198,7 @@ export default function CreateTodoPage() {
           </label>
           <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => handleQuickLink('order', '/reports/members')}
+              onClick={() => handleQuickLink('customer_order', '/reports/orders')}
               className="px-4 py-2 rounded-xl text-sm font-medium"
               style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
             >
@@ -184,6 +217,13 @@ export default function CreateTodoPage() {
               style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
             >
               🔧 快取維修
+            </button>
+            <button
+              onClick={() => handleQuickLink('member', '/reports/members')}
+              className="px-4 py-2 rounded-xl text-sm font-medium"
+              style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
+            >
+              👥 快取會員
             </button>
           </div>
 
@@ -235,7 +275,21 @@ export default function CreateTodoPage() {
           {submitting ? '建立中...' : '建立任務'}
         </button>
       </div>
+    </>
+  );
+}
 
+export default function CreateTodoPage() {
+  return (
+    <div className="pb-20 min-h-screen">
+      <Suspense fallback={
+        <div className="flex items-center justify-center h-40">
+          <div className="w-7 h-7 border-[3px] rounded-full animate-spin"
+            style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+        </div>
+      }>
+        <CreateTodoForm />
+      </Suspense>
       <BottomNav active="todo" />
     </div>
   );

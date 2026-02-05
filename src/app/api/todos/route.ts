@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { sendTaskNotification } from '@/lib/telegram';
 
 // GET /api/todos - List todos
 export async function GET(req: NextRequest) {
@@ -65,9 +66,37 @@ export async function POST(req: NextRequest) {
       [creator, store, assignee || null, task_type || 'general', related_id || null, related_name || null, description || null]
     );
 
+    const newTodo = result.rows[0];
+
+    // 發送 Telegram 通知給被指派者
+    if (assignee) {
+      try {
+        const staffResult = await query(
+          `SELECT telegram_chat_id FROM staff WHERE name = $1 AND is_active = true`,
+          [assignee]
+        );
+
+        if (staffResult.rows.length > 0 && staffResult.rows[0].telegram_chat_id) {
+          await sendTaskNotification({
+            chatId: staffResult.rows[0].telegram_chat_id,
+            taskType: task_type || 'general',
+            creator,
+            store,
+            assignee,
+            relatedName: related_name,
+            description,
+            taskId: newTodo.id,
+          });
+        }
+      } catch (notifyError) {
+        console.error('Telegram notification failed:', notifyError);
+        // 不影響任務建立結果
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      data: result.rows[0],
+      data: newTodo,
     });
   } catch (error) {
     return NextResponse.json(
