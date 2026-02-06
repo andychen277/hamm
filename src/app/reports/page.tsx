@@ -37,7 +37,11 @@ function StoreTable({ stores }: { stores: StoreRow[] }) {
   return (
     <div className="space-y-2">
       {stores.map(s => (
-        <div key={s.store} className="flex items-center justify-between">
+        <Link
+          key={s.store}
+          href={`/dashboard/stores/${encodeURIComponent(s.store)}`}
+          className="flex items-center justify-between py-1 -mx-1 px-1 rounded-lg active:bg-white/5"
+        >
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full" style={{ background: STORE_COLORS[s.store] || '#64748b' }} />
             <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{s.store}店</span>
@@ -46,7 +50,7 @@ function StoreTable({ stores }: { stores: StoreRow[] }) {
             <span className="text-sm font-medium tabular-nums" style={{ color: 'var(--color-text-primary)' }}>{fmt$(s.revenue)}</span>
             <span className="text-[11px] ml-2" style={{ color: 'var(--color-text-muted)' }}>{s.orders}單</span>
           </div>
-        </div>
+        </Link>
       ))}
     </div>
   );
@@ -266,25 +270,27 @@ export default function ReportsPage() {
         </div>
       ) : (
         <div className="px-5">
-          {/* Revenue summary */}
-          <Card title="📈 營收摘要">
-            <div className="flex items-baseline gap-2 mb-2">
-              <span className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
-                {fmt$(report.total_revenue)}
-              </span>
-              <ChangeTag value={report.revenue_change} />
-            </div>
-            {type === 'daily' && (
-              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                本月累計：{fmt$(report.month_cumulative)}
-              </p>
-            )}
-            {type === 'monthly' && report.yoy_change != null && report.yoy_revenue != null && (
-              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                YoY {report.yoy_change >= 0 ? '+' : ''}{Number(report.yoy_change).toFixed(1)}%（去年同期 {fmt$(report.yoy_revenue)}）
-              </p>
-            )}
-          </Card>
+          {/* Revenue summary - Clickable */}
+          <Link href={type === 'daily' ? '/dashboard/revenue/today' : '/dashboard/revenue/this-month'}>
+            <Card title="📈 營收摘要">
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
+                  {fmt$(report.total_revenue)}
+                </span>
+                <ChangeTag value={report.revenue_change} />
+              </div>
+              {type === 'daily' && (
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  本月累計：{fmt$(report.month_cumulative)}
+                </p>
+              )}
+              {type === 'monthly' && report.yoy_change != null && report.yoy_revenue != null && (
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  YoY {report.yoy_change >= 0 ? '+' : ''}{Number(report.yoy_change).toFixed(1)}%（去年同期 {fmt$(report.yoy_revenue)}）
+                </p>
+              )}
+            </Card>
+          </Link>
 
           {/* Store breakdown */}
           <Card title="🏪 各門市表現">
@@ -298,38 +304,38 @@ export default function ReportsPage() {
             </Card>
           )}
 
-          {/* Member stats */}
+          {/* Member stats - Clickable */}
           <Card title="👥 會員動態">
             <div className="grid grid-cols-2 gap-3">
               {type === 'daily' && (
                 <>
-                  <div>
+                  <Link href="/dashboard/new-members" className="active:opacity-70">
                     <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>{report.new_members}</p>
                     <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>新加入</p>
-                  </div>
-                  <div>
+                  </Link>
+                  <Link href="/reports/members?filter=line" className="active:opacity-70">
                     <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-accent)' }}>{report.new_line_bindings}</p>
                     <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>LINE 新綁定</p>
-                  </div>
+                  </Link>
                 </>
               )}
               {(type === 'weekly' || type === 'monthly') && (
                 <>
-                  <div>
+                  <Link href="/dashboard/new-members" className="active:opacity-70">
                     <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>{report.new_members ?? report.member_growth}</p>
                     <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>新會員</p>
-                  </div>
+                  </Link>
                   {report.active_members !== undefined && (
-                    <div>
+                    <Link href="/reports/members" className="active:opacity-70">
                       <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-accent)' }}>{report.active_members}</p>
                       <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>活躍會員</p>
-                    </div>
+                    </Link>
                   )}
                   {report.total_members !== undefined && (
-                    <div>
+                    <Link href="/reports/members" className="active:opacity-70">
                       <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>{report.total_members.toLocaleString()}</p>
                       <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>總會員數</p>
-                    </div>
+                    </Link>
                   )}
                 </>
               )}
@@ -350,22 +356,22 @@ export default function ReportsPage() {
             </Card>
           )}
 
-          {/* Service status (daily) */}
+          {/* Service status (daily) - Clickable */}
           {type === 'daily' && (
             <Card title="🛠️ 服務狀態">
               <div className="grid grid-cols-3 gap-3 text-center">
-                <div>
+                <Link href="/reports/repairs?status=維修中" className="active:opacity-70">
                   <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-warning)' }}>{report.active_repairs}</p>
                   <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>維修中</p>
-                </div>
-                <div>
+                </Link>
+                <Link href="/reports/orders?status=未到" className="active:opacity-70">
                   <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-accent)' }}>{report.pending_orders}</p>
                   <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>待到貨</p>
-                </div>
-                <div>
+                </Link>
+                <Link href="/reports/repairs?status=已完修" className="active:opacity-70">
                   <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>{report.completed_repairs}</p>
                   <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>今日完修</p>
-                </div>
+                </Link>
               </div>
             </Card>
           )}

@@ -59,6 +59,7 @@ export interface MonthlyReport {
 }
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+const ALL_STORES = ['台南', '高雄', '台中', '台北', '美術'];
 
 function pctChange(current: number, previous: number): number | null {
   if (previous === 0) return null;
@@ -85,12 +86,25 @@ async function getStoreRevenue(dateFrom: string, dateTo: string): Promise<StoreR
      ORDER BY revenue DESC`,
     [dateFrom, dateTo]
   );
-  return result.rows.map(r => ({
+
+  // Build a map from query results
+  const storeMap = new Map(result.rows.map(r => [r.store, {
     store: r.store,
     revenue: Number(r.revenue),
     orders: Number(r.orders),
     avg_order: Number(r.avg_order),
-  }));
+  }]));
+
+  // Ensure all stores are included, even with 0 revenue
+  const allStoreResults = ALL_STORES.map(store => storeMap.get(store) || {
+    store,
+    revenue: 0,
+    orders: 0,
+    avg_order: 0,
+  });
+
+  // Sort by revenue descending
+  return allStoreResults.sort((a, b) => b.revenue - a.revenue);
 }
 
 async function getTopProducts(dateFrom: string, dateTo: string, limit = 10) {
@@ -246,9 +260,21 @@ export async function generateMonthlyReport(dateStr: string): Promise<MonthlyRep
   }).sort((a, b) => b.saleprodquery - a.saleprodquery);
 
   // Use saleprodquery stores if available, otherwise member_transactions stores
-  const finalStores = srdStores.rows.length > 0
-    ? srdStores.rows.map(r => ({ store: r.store, revenue: Number(r.revenue), orders: 0, avg_order: 0 }))
-    : stores;
+  // Ensure all stores are included
+  const srdStoreMap = new Map(srdStores.rows.map(r => [r.store, Number(r.revenue)]));
+  const memberStoreMap = new Map(stores.map(s => [s.store, s]));
+
+  const finalStores = ALL_STORES.map(store => {
+    const srdRevenue = srdStoreMap.get(store);
+    const memberData = memberStoreMap.get(store);
+    if (srdRevenue !== undefined) {
+      return { store, revenue: srdRevenue, orders: memberData?.orders || 0, avg_order: memberData?.avg_order || 0 };
+    } else if (memberData) {
+      return memberData;
+    } else {
+      return { store, revenue: 0, orders: 0, avg_order: 0 };
+    }
+  }).sort((a, b) => b.revenue - a.revenue);
 
   return {
     month,

@@ -1,8 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { getLiveRevenue } from '@/lib/erp';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const useLive = searchParams.get('live') === 'true';
+
     const today = new Date().toISOString().split('T')[0];
     const monthStart = today.substring(0, 7) + '-01';
 
@@ -107,7 +111,23 @@ export async function GET() {
       ),
     ]);
 
-    const todayRev = Number(todayRevenue.rows[0].total);
+    // 如果要即時資料，從 ERP 查詢今日營收
+    let todayRev = Number(todayRevenue.rows[0].total);
+    let isLive = false;
+
+    if (useLive) {
+      try {
+        const liveResult = await getLiveRevenue();
+        if (liveResult.success && liveResult.data) {
+          todayRev = liveResult.data.reduce((sum, s) => sum + s.revenue, 0);
+          isLive = true;
+          console.log(`[KPI] 使用即時營收: $${todayRev.toLocaleString()}`);
+        }
+      } catch (err) {
+        console.error('[KPI] 即時營收查詢失敗，使用本地資料:', err);
+      }
+    }
+
     const yesterdayRev = Number(yesterdayRevenue.rows[0].total);
     const monthRev = Number(monthRevenue.rows[0].total);
     const prevMonthRev = Number(prevMonthRevenue.rows[0].total);
@@ -123,11 +143,12 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
+      isLive,
       data: {
         today_revenue: {
           value: todayRev,
           change: pctChange(todayRev, yesterdayRev),
-          label: '今日營收',
+          label: isLive ? '今日營收 (即時)' : '今日營收',
           compare: 'vs 昨日',
         },
         month_revenue: {

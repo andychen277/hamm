@@ -110,8 +110,10 @@ export default function DashboardPage() {
       setLoading(true);
     }
     try {
+      // 下拉刷新時使用即時營收（從 ERP 即時查詢）
+      const kpiUrl = isRefresh ? '/api/dashboard/kpi?live=true' : '/api/dashboard/kpi';
       const [kpiRes, storesRes, statusRes] = await Promise.all([
-        fetch('/api/dashboard/kpi'),
+        fetch(kpiUrl),
         fetch('/api/dashboard/stores'),
         fetch('/api/dashboard/status'),
       ]);

@@ -14,6 +14,53 @@ async function getRevenue(store: string, startDate: string, endDate: string): Pr
   return Number(result.rows[0]?.total || 0);
 }
 
+// 取得某日期範圍的銷售商品明細
+interface ProductSale {
+  product_id: string;
+  product_name: string;
+  transaction_date: string;
+  quantity: number;
+  price: number;
+  total: number;
+  member_name: string | null;
+  supplier: string | null;
+}
+
+async function getProductSales(store: string, startDate: string, endDate: string): Promise<ProductSale[]> {
+  const result = await query<ProductSale & { supplier: string | null }>(
+    `SELECT
+       mt.product_id,
+       mt.product_name,
+       mt.transaction_date::text,
+       mt.quantity,
+       mt.price,
+       mt.total,
+       mt.member_name,
+       ps.supplier
+     FROM member_transactions mt
+     LEFT JOIN purchase_summary ps ON mt.product_id = ps.product_id
+     WHERE mt.store = $1
+       AND mt.transaction_date >= $2
+       AND mt.transaction_date <= $3
+       AND mt.transaction_type = '收銀'
+       AND mt.product_name IS NOT NULL
+       AND mt.product_name != ''
+     ORDER BY mt.transaction_date DESC, mt.total DESC
+     LIMIT 200`,
+    [store, startDate, endDate]
+  );
+  return result.rows.map(r => ({
+    product_id: r.product_id,
+    product_name: r.product_name,
+    transaction_date: r.transaction_date,
+    quantity: Number(r.quantity),
+    price: Number(r.price),
+    total: Number(r.total),
+    member_name: r.member_name,
+    supplier: r.supplier || null,
+  }));
+}
+
 // 取得本週一的日期
 function getMonday(date: Date): Date {
   const d = new Date(date);
@@ -75,10 +122,15 @@ export async function GET(
     // 自訂日期查詢
     let customRevenue = null;
     if (customStart && customEnd) {
+      const [revenue, products] = await Promise.all([
+        getRevenue(storeName, customStart, customEnd),
+        getProductSales(storeName, customStart, customEnd),
+      ]);
       customRevenue = {
         start: customStart,
         end: customEnd,
-        revenue: await getRevenue(storeName, customStart, customEnd),
+        revenue,
+        products,
       };
     }
 

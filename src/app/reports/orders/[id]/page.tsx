@@ -365,19 +365,31 @@ export default function OrderDetailPage() {
           {/* Customer's Recent Transactions */}
           {data.customer_transactions.length > 0 && (
             <Card title="🛒 此客戶近期消費">
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-64 overflow-y-auto">
                 {data.customer_transactions.map((tx, i) => (
-                  <div key={i} className="flex justify-between items-center text-xs py-1 border-b" style={{ borderColor: 'var(--color-bg-card-alt)' }}>
-                    <div>
-                      <span style={{ color: 'var(--color-text-muted)' }}>{tx.date}</span>
+                  <div
+                    key={i}
+                    className="p-2 rounded-lg"
+                    style={{ background: 'var(--color-bg-card-alt)' }}
+                  >
+                    <div className="flex justify-between items-start gap-2 mb-1">
+                      <span className="text-xs font-medium flex-1 line-clamp-2" style={{ color: 'var(--color-text-primary)' }}>
+                        {tx.product_name || '(無商品名)'}
+                      </span>
+                      <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>
+                        {fmt$(tx.total)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                      <span>{tx.date}</span>
+                      <span>×{tx.quantity}</span>
                       <span
-                        className="ml-2 px-1.5 py-0.5 rounded text-[10px]"
+                        className="px-1 py-0.5 rounded"
                         style={{ background: STORE_COLORS[tx.store] || 'var(--color-accent)', color: '#fff' }}
                       >
                         {tx.store}
                       </span>
                     </div>
-                    <span className="tabular-nums" style={{ color: 'var(--color-positive)' }}>{fmt$(tx.total)}</span>
                   </div>
                 ))}
               </div>

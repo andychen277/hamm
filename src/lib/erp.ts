@@ -282,3 +282,146 @@ export async function createRepair(
     return { success: false, repairNumber: '', error: String(error) };
   }
 }
+
+// ============================================================
+// 即時營收查詢
+// ============================================================
+
+const REVENUE_STORES = [
+  { code: '001', name: '台南' },
+  { code: '002', name: '高雄' },
+  { code: '005', name: '台中' },
+  { code: '006', name: '台北' },
+  { code: '007', name: '美術' },
+];
+
+// 快取：5 分鐘內重複查詢用快取
+let revenueCache: { data: StoreRevenue[]; timestamp: number } | null = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export interface StoreRevenue {
+  store: string;
+  revenue: number;
+  productCount: number;
+}
+
+/**
+ * 從 ERP 查詢單一門市的營收
+ */
+async function fetchStoreRevenue(storeCode: string, date: string): Promise<{ revenue: number; productCount: number }> {
+  const response = await fetch(`${ERP_BASE_URL}/saleprodquery.php`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Cookie': cookies,
+    },
+    body: `ssdate=${date}&esdate=${date}&ston=${storeCode}&scdoc=&mobile=&scno=&pplunm=&submit=%E6%9F%A5%E8%A9%A2`,
+  });
+
+  const html = await response.text();
+  const tbodyStart = html.indexOf('<tbody>');
+  if (tbodyStart === -1) return { revenue: 0, productCount: 0 };
+
+  let tbodyEnd = html.indexOf('</tbody>');
+  if (tbodyEnd === -1) tbodyEnd = html.length;
+  const content = html.substring(tbodyStart + 7, tbodyEnd);
+
+  let totalRevenue = 0;
+  let productCount = 0;
+  let pos = 0;
+
+  while (true) {
+    const trStart = content.indexOf('<tr>', pos);
+    if (trStart === -1) break;
+    const trEnd = content.indexOf('</tr>', trStart);
+    if (trEnd === -1) break;
+    const row = content.substring(trStart, trEnd + 5);
+    pos = trEnd + 5;
+
+    const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
+    if (cells.length < 7) continue;
+
+    const getValue = (cell: string) => cell.replace(/<td[^>]*>|<\/td>/g, '').replace(/<[^>]*>/g, '').trim();
+    const amount = parseFloat(getValue(cells[6]).replace(/,/g, '')) || 0;
+
+    totalRevenue += amount;
+    productCount++;
+  }
+
+  return { revenue: totalRevenue, productCount };
+}
+
+/**
+ * 查詢今日各門市即時營收
+ */
+export async function getLiveRevenue(forceRefresh = false): Promise<{
+  success: boolean;
+  data?: StoreRevenue[];
+  date?: string;
+  cachedAt?: string;
+  error?: string;
+}> {
+  // 檢查快取
+  if (!forceRefresh && revenueCache && (Date.now() - revenueCache.timestamp) < CACHE_TTL) {
+    console.log('[ERP] 使用快取的營收資料');
+    return {
+      success: true,
+      data: revenueCache.data,
+      date: getTodayDate(),
+      cachedAt: new Date(revenueCache.timestamp).toISOString(),
+    };
+  }
+
+  try {
+    await ensureLogin();
+
+    const today = getTodayDate();
+    const erpDate = today.replace(/-/g, '/');
+    console.log(`[ERP] 查詢即時營收: ${erpDate}`);
+
+    const results: StoreRevenue[] = [];
+
+    for (const store of REVENUE_STORES) {
+      try {
+        const { revenue, productCount } = await fetchStoreRevenue(store.code, erpDate);
+        results.push({
+          store: store.name,
+          revenue,
+          productCount,
+        });
+      } catch (err) {
+        console.error(`[ERP] ${store.name} 查詢失敗:`, err);
+        results.push({
+          store: store.name,
+          revenue: 0,
+          productCount: 0,
+        });
+      }
+    }
+
+    // 更新快取
+    revenueCache = {
+      data: results,
+      timestamp: Date.now(),
+    };
+
+    return {
+      success: true,
+      data: results,
+      date: today,
+    };
+  } catch (error) {
+    console.error('[ERP] 即時營收查詢失敗:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '查詢失敗',
+    };
+  }
+}
+
+function getTodayDate(): string {
+  const now = new Date();
+  // 轉換為台灣時間
+  const tw = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  return tw.toISOString().split('T')[0];
+}

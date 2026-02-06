@@ -5,12 +5,27 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import BottomNav from '@/components/BottomNav';
 
+interface ProductSale {
+  product_id: string;
+  product_name: string;
+  transaction_date: string;
+  quantity: number;
+  price: number;
+  total: number;
+  member_name: string | null;
+  supplier: string | null;
+}
+
 interface PeriodData {
   start?: string;
   end?: string;
   date?: string;
   revenue: number;
+  products?: ProductSale[];
 }
+
+type SortField = 'date' | 'total';
+type SortOrder = 'asc' | 'desc';
 
 interface StoreRevenueData {
   store: string;
@@ -56,6 +71,23 @@ export default function StoreDetailPage() {
   const [endDate, setEndDate] = useState('');
   const [customResult, setCustomResult] = useState<PeriodData | null>(null);
   const [searching, setSearching] = useState(false);
+
+  // 排序狀態
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  // 排序後的商品列表
+  const sortedProducts = customResult?.products
+    ? [...customResult.products].sort((a, b) => {
+        if (sortField === 'date') {
+          const cmp = a.transaction_date.localeCompare(b.transaction_date);
+          return sortOrder === 'asc' ? cmp : -cmp;
+        } else {
+          const cmp = a.total - b.total;
+          return sortOrder === 'asc' ? cmp : -cmp;
+        }
+      })
+    : [];
 
   useEffect(() => {
     async function fetchData() {
@@ -256,18 +288,92 @@ export default function StoreDetailPage() {
 
             {/* 查詢結果 */}
             {customResult && (
-              <Link
-                href={`/dashboard/stores/${encodeURIComponent(store)}/custom?start=${customResult.start}&end=${customResult.end}`}
-                className="block mt-4 pt-4 border-t active:opacity-70 transition-opacity"
-                style={{ borderColor: 'var(--color-bg-card-alt)' }}
-              >
+              <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--color-bg-card-alt)' }}>
                 <p className="text-[11px] mb-1" style={{ color: 'var(--color-text-muted)' }}>
                   {formatDateRange(customResult.start, customResult.end)} 營收
                 </p>
-                <p className="text-2xl font-bold tabular-nums" style={{ color: storeColor }}>
+                <p className="text-2xl font-bold tabular-nums mb-4" style={{ color: storeColor }}>
                   {fmt$(customResult.revenue)}
                 </p>
-              </Link>
+
+                {/* 商品列表 */}
+                {sortedProducts.length > 0 && (
+                  <>
+                    {/* 排序控制 */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>排序：</span>
+                      <button
+                        onClick={() => {
+                          if (sortField === 'date') {
+                            setSortOrder(o => o === 'desc' ? 'asc' : 'desc');
+                          } else {
+                            setSortField('date');
+                            setSortOrder('desc');
+                          }
+                        }}
+                        className="px-2 py-1 rounded text-[11px] font-medium"
+                        style={{
+                          background: sortField === 'date' ? storeColor : 'var(--color-bg-card-alt)',
+                          color: sortField === 'date' ? '#fff' : 'var(--color-text-secondary)',
+                        }}
+                      >
+                        日期 {sortField === 'date' && (sortOrder === 'desc' ? '↓' : '↑')}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (sortField === 'total') {
+                            setSortOrder(o => o === 'desc' ? 'asc' : 'desc');
+                          } else {
+                            setSortField('total');
+                            setSortOrder('desc');
+                          }
+                        }}
+                        className="px-2 py-1 rounded text-[11px] font-medium"
+                        style={{
+                          background: sortField === 'total' ? storeColor : 'var(--color-bg-card-alt)',
+                          color: sortField === 'total' ? '#fff' : 'var(--color-text-secondary)',
+                        }}
+                      >
+                        金額 {sortField === 'total' && (sortOrder === 'desc' ? '↓' : '↑')}
+                      </button>
+                      <span className="text-[10px] ml-auto" style={{ color: 'var(--color-text-muted)' }}>
+                        共 {sortedProducts.length} 筆
+                      </span>
+                    </div>
+
+                    {/* 商品列表 */}
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                      {sortedProducts.map((p, i) => (
+                        <Link
+                          key={`${p.product_id}-${p.transaction_date}-${i}`}
+                          href={`/reports/products/${encodeURIComponent(p.product_id)}`}
+                          className="block p-2 rounded-lg active:opacity-70 transition-opacity"
+                          style={{ background: 'var(--color-bg-card-alt)' }}
+                        >
+                          <div className="flex justify-between items-start gap-2 mb-1">
+                            <span className="text-xs font-medium flex-1 line-clamp-2" style={{ color: 'var(--color-text-primary)' }}>
+                              {p.product_name}
+                            </span>
+                            <span className="text-xs font-bold tabular-nums" style={{ color: storeColor }}>
+                              ${p.total.toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] flex-wrap" style={{ color: 'var(--color-text-muted)' }}>
+                            <span>{p.transaction_date}</span>
+                            <span>×{p.quantity}</span>
+                            {p.supplier && (
+                              <span className="px-1 py-0.5 rounded" style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}>
+                                {p.supplier}
+                              </span>
+                            )}
+                            {p.member_name && <span>{p.member_name}</span>}
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
