@@ -94,8 +94,11 @@ ${DB_SCHEMA}
 |------|-----|---------|---------|------|
 | 總營收（含非會員） | store_revenue_daily | revenue_date | revenue | 營收查詢優先用這張 |
 | 會員消費明細 | member_transactions | transaction_date | total | 必須加 transaction_type = '收銀' |
-- 查營收只用一張表，絕不 JOIN / UNION 兩表金額
+- 每次查詢只用一張表，絕不 JOIN / UNION / UNION ALL 兩表金額
 - store_revenue_daily 已包含 member_transactions 的收銀數據
+- 分析單一門市時用 store_revenue_daily，需要會員維度才用 member_transactions
+- ❌ 錯誤：SELECT ... FROM store_revenue_daily UNION ALL SELECT ... FROM member_transactions
+- ✅ 正確：只從一張表查，一次回答一個維度
 
 ## 日期處理
 - 禁止 date() 函數、EXTRACT(MONTH/YEAR FROM ...)、BETWEEN
@@ -306,9 +309,23 @@ function generateSummaryAnswer(_question: string, results: Record<string, unknow
 
   if (numericKeys.length > 0 && labelKeys.length > 0) {
     const mainNumKey = numericKeys[0];
+    const mainLabelKey = labelKeys[0];
+
+    // For small result sets (≤ 3 rows), list each row individually
+    // to avoid misleading totals from UNION ALL queries with mixed metrics
+    if (results.length <= 3) {
+      const parts = results.map(r => {
+        const label = String(r[mainLabelKey]);
+        const val = Number(r[mainNumKey]);
+        return `${label}：${fmt$(val)}`;
+      });
+      return parts.join('｜');
+    }
+
+    // For larger result sets, show total + top item
     const total = results.reduce((sum, r) => sum + Number(r[mainNumKey]), 0);
     const topRow = results[0];
-    const topLabel = String(topRow[labelKeys[0]]);
+    const topLabel = String(topRow[mainLabelKey]);
     const topVal = Number(topRow[mainNumKey]);
     return `共 ${results.length} 筆，${mainNumKey}合計 ${fmt$(total)}。最高：${topLabel}（${fmt$(topVal)}，佔 ${((topVal / total) * 100).toFixed(1)}%）`;
   }
