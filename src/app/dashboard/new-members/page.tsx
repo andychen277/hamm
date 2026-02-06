@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import BottomNav from '@/components/BottomNav';
 
 interface StoreCount {
@@ -50,10 +51,13 @@ function formatMonth(monthStr: string) {
   return parts[0] + '年' + parseInt(parts[1]) + '月';
 }
 
+const STORES = ['全部', '台南', '高雄', '台中', '台北', '美術'];
+
 export default function NewMembersPage() {
   const router = useRouter();
   const [data, setData] = useState<NewMembersData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedStore, setSelectedStore] = useState('全部');
 
   useEffect(() => {
     fetch('/api/dashboard/new-members')
@@ -65,6 +69,16 @@ export default function NewMembersPage() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // Filter members by selected store
+  const filteredMembers = data?.recent_members.filter(
+    m => selectedStore === '全部' || m.store === selectedStore
+  ) || [];
+
+  // Get count for selected store
+  const selectedCount = selectedStore === '全部'
+    ? data?.this_month.total || 0
+    : data?.this_month.by_store.find(s => s.store === selectedStore)?.count || 0;
 
   return (
     <div className="pb-20 min-h-screen">
@@ -169,22 +183,54 @@ export default function NewMembersPage() {
             )}
           </div>
 
+          {/* Store Filter */}
+          <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
+            {STORES.map(store => (
+              <button
+                key={store}
+                onClick={() => setSelectedStore(store)}
+                className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all"
+                style={{
+                  background: selectedStore === store
+                    ? (store === '全部' ? 'var(--color-accent)' : STORE_COLORS[store] || '#888')
+                    : 'var(--color-bg-card)',
+                  color: selectedStore === store
+                    ? (store === '美術' ? '#333' : '#fff')
+                    : 'var(--color-text-secondary)',
+                }}
+              >
+                {store}
+                {store !== '全部' && data?.this_month.by_store.find(s => s.store === store) && (
+                  <span className="ml-1 opacity-80">
+                    {data.this_month.by_store.find(s => s.store === store)?.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
           {/* Recent Members */}
           <div className="rounded-2xl p-4" style={{ background: 'var(--color-bg-card)' }}>
-            <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-              本月新會員名單
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                {selectedStore === '全部' ? '本月新會員名單' : `${selectedStore}店新會員`}
+              </h2>
+              <span className="text-sm font-medium" style={{ color: 'var(--color-accent)' }}>
+                {selectedCount} 人
+              </span>
+            </div>
 
-            {data.recent_members.length === 0 ? (
+            {filteredMembers.length === 0 ? (
               <p className="text-sm text-center py-4" style={{ color: 'var(--color-text-muted)' }}>
-                本月尚無新會員
+                {selectedStore === '全部' ? '本月尚無新會員' : `${selectedStore}店本月尚無新會員`}
               </p>
             ) : (
               <div className="space-y-2">
-                {data.recent_members.map((member, idx) => (
-                  <div
+                {filteredMembers.map((member, idx) => (
+                  <Link
                     key={member.phone + '-' + idx}
-                    className="flex items-center gap-3 p-2 rounded-lg"
+                    href={`/reports/members/${encodeURIComponent(member.phone)}`}
+                    className="flex items-center gap-3 p-2 rounded-lg active:opacity-70 transition-opacity"
                     style={{ background: 'var(--color-bg-card-alt)' }}
                   >
                     <div
@@ -194,17 +240,20 @@ export default function NewMembersPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>
-                          {member.name}
+                          {member.name || '未知'}
                         </span>
-                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                          {member.store}
-                        </span>
+                        {selectedStore === '全部' && (
+                          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                            {member.store}
+                          </span>
+                        )}
                       </div>
                       <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                         {formatDate(member.first_date)} 首購 ${member.first_amount.toLocaleString()}
                       </span>
                     </div>
-                  </div>
+                    <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>›</span>
+                  </Link>
                 ))}
               </div>
             )}

@@ -63,50 +63,119 @@ async function textToSql(question: string, context?: string[]): Promise<string> 
     ? `\n\n先前對話脈絡:\n${context.join('\n')}`
     : '';
 
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const today = now.toISOString().split('T')[0];
+  const thisMonthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+  const nextMonthStart = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const lastMonthStart = month === 1 ? `${year - 1}-12-01` : `${year}-${String(month - 1).padStart(2, '0')}-01`;
+
   const text = await chatCompletion([
     {
       role: 'system',
-      content: `你是 Hamm，277 Bicycle 的資料分析助手。將使用者的中文問題轉換為 PostgreSQL SQL 查詢。
+      content: `你是 277 Bicycle 的 SQL 查詢引擎。將中文問題精準轉為 PostgreSQL SELECT 語句。
+今天是 ${today}，本月 = ${thisMonthStart}，上月 = ${lastMonthStart}。
 
 ${DB_SCHEMA}
 
-今天是 ${new Date().toISOString().split('T')[0]}。
-
 ## 規則
-1. 只能產生 SELECT 語句，禁止任何寫入操作
-2. 必須加上 LIMIT（預設 100，除非使用者明確要全部）
-3. 金額相關查詢使用 SUM / AVG 搭配 GROUP BY
-4. 回傳的 SQL 要包含有意義的欄位別名（中文）
-5. 如果問題模糊，優先回傳總覽型的摘要查詢
-6. member_transactions 的金額欄位是 "total"，門市欄位是 "store"
-7. 營收查詢優先使用 store_revenue_daily 表（數據最準確，含非會員、二手車等）
-8. 如果查詢需要會員明細（商品、手機、客單價等），才用 member_transactions 並過濾 transaction_type = '收銀'
-9. 門市值只有：台南, 高雄, 台中, 台北, 美術（不含"店"字）
-10. 不要使用 INTO 關鍵字
-11. 嚴禁將 store_revenue_daily 和 member_transactions 的金額相加！它們有重疊數據。store_revenue_daily 已包含 member_transactions 的收銀數據。營收總額只看 store_revenue_daily。如需對比，用兩個獨立子查詢分別算，標示為「全部營收」和「會員營收」
-12. store_revenue_daily 的日期欄位是 revenue_date，金額欄位是 revenue
-13. 查營收時只用一張表：store_revenue_daily（總營收）或 member_transactions（會員明細），絕不要 JOIN 或 UNION 兩表的金額
+1. 只產生 SELECT（可用 WITH CTE），禁止寫入操作，禁止 INTO 關鍵字
+2. 必須加 LIMIT（預設 100，除非使用者指定數量）
+3. 欄位別名用中文
+4. 門市值只有：台南, 高雄, 台中, 台北, 美術（不含"店"字）
+5. 問題模糊時，優先回傳總覽型摘要查詢
 
-## 日期規則（非常重要）
-- 禁止使用 date() 函數！PostgreSQL 沒有 date(year, month) 這種寫法
-- 日期一律用字串格式：'2026-01-01'，不要用任何日期函數建構
-- 時間範圍必須完整對應使用者的數字：
-  - 「最近三個月」→ INTERVAL '3 months'（不是 1 month！）
-  - 「最近六個月」→ INTERVAL '6 months'
-  - 「最近 30 天」→ INTERVAL '30 days'
-  - 「最近一週」→ INTERVAL '7 days'
-- 範例：「最近三個月各店營業額」的正確 SQL：
-  SELECT store AS 門市, SUM(revenue) AS 總營業額
+## 兩張營收表（嚴禁混用！）
+| 用途 | 表 | 日期欄位 | 金額欄位 | 注意 |
+|------|-----|---------|---------|------|
+| 總營收（含非會員） | store_revenue_daily | revenue_date | revenue | 營收查詢優先用這張 |
+| 會員消費明細 | member_transactions | transaction_date | total | 必須加 transaction_type = '收銀' |
+- 查營收只用一張表，絕不 JOIN / UNION 兩表金額
+- store_revenue_daily 已包含 member_transactions 的收銀數據
+
+## 日期處理
+- 禁止 date() 函數、EXTRACT(MONTH/YEAR FROM ...)、BETWEEN
+- 日期用字串格式，月份範圍用 >= 和 <
+- 相對時間用 CURRENT_DATE - INTERVAL '3 months'
+- 「20260103」解讀為 '2026-01-03'
+
+## 正確範例（嚴格參考這些模式）
+
+問：上個月各門市營收
+SELECT store AS 門市, SUM(revenue) AS 營收
+FROM store_revenue_daily
+WHERE revenue_date >= '${lastMonthStart}' AND revenue_date < '${thisMonthStart}'
+GROUP BY store ORDER BY 營收 DESC LIMIT 100
+
+問：最近 30 天最暢銷前 10 名商品
+SELECT product_name AS 商品, SUM(quantity) AS 銷量, SUM(total) AS 金額
+FROM member_transactions
+WHERE transaction_type = '收銀' AND transaction_date >= CURRENT_DATE - INTERVAL '30 days'
+GROUP BY product_name ORDER BY 銷量 DESC LIMIT 10
+
+問：本月新增會員數
+SELECT COUNT(DISTINCT member_phone) AS 新增會員數
+FROM (
+  SELECT member_phone, MIN(transaction_date) AS first_date
+  FROM member_transactions
+  WHERE member_phone IS NOT NULL AND member_phone != ''
+  GROUP BY member_phone
+) sub
+WHERE first_date >= '${thisMonthStart}' AND first_date < '${nextMonthStart}' LIMIT 100
+
+問：VIP 會員有哪些
+SELECT name AS 姓名, phone AS 手機, total_spent AS 總消費
+FROM unified_members WHERE member_level = 'vip'
+ORDER BY total_spent DESC LIMIT 100
+
+問：高雄上週每天營收
+SELECT revenue_date AS 日期, revenue AS 營收
+FROM store_revenue_daily
+WHERE store = '高雄' AND revenue_date >= CURRENT_DATE - INTERVAL '7 days'
+ORDER BY revenue_date LIMIT 100
+
+問：哪些會員超過半年沒消費
+SELECT m.name AS 姓名, m.phone AS 手機, m.total_spent AS 歷史消費, MAX(t.transaction_date) AS 最後消費日
+FROM unified_members m
+JOIN member_transactions t ON t.member_phone = m.phone
+WHERE t.transaction_type = '收銀'
+GROUP BY m.name, m.phone, m.total_spent
+HAVING MAX(t.transaction_date) < CURRENT_DATE - INTERVAL '6 months'
+ORDER BY 歷史消費 DESC LIMIT 100
+
+問：各門市本月 vs 上月營收比較
+WITH this_month AS (
+  SELECT store, SUM(revenue) AS 本月營收
   FROM store_revenue_daily
-  WHERE revenue_date >= CURRENT_DATE - INTERVAL '3 months'
+  WHERE revenue_date >= '${thisMonthStart}' AND revenue_date < '${nextMonthStart}'
   GROUP BY store
-  ORDER BY 總營業額 DESC
-- 月份查詢必須用日期範圍：revenue_date >= '2026-01-01' AND revenue_date < '2026-02-01'
-- 使用者輸入 "20260103" 要解讀為 '2026-01-03'
-- 使用者說「一月」「上個月」等，預設為今年（${new Date().getFullYear()}年）
-- 禁止使用 EXTRACT(MONTH FROM ...) 或 EXTRACT(YEAR FROM ...)，這會跨越多年
-- 一律使用 >= 和 < 來限定日期範圍，不要用 BETWEEN
-- store_revenue_daily 用 revenue_date，member_transactions 用 transaction_date
+), last_month AS (
+  SELECT store, SUM(revenue) AS 上月營收
+  FROM store_revenue_daily
+  WHERE revenue_date >= '${lastMonthStart}' AND revenue_date < '${thisMonthStart}'
+  GROUP BY store
+)
+SELECT COALESCE(t.store, l.store) AS 門市,
+  COALESCE(本月營收, 0) AS 本月營收, COALESCE(上月營收, 0) AS 上月營收,
+  ROUND(CASE WHEN 上月營收 > 0 THEN (本月營收 - 上月營收) / 上月營收 * 100 ELSE 0 END, 1) AS 成長率百分比
+FROM this_month t FULL JOIN last_month l ON t.store = l.store
+ORDER BY 本月營收 DESC LIMIT 100
+
+問：各消費等級的會員數
+SELECT member_level AS 等級, COUNT(*) AS 人數
+FROM unified_members
+WHERE member_level IS NOT NULL
+GROUP BY member_level ORDER BY 人數 DESC LIMIT 100
+
+問：LINE 綁定率各門市比較
+SELECT store AS 門市,
+  COUNT(*) AS 總會員,
+  COUNT(line_user_id) AS 已綁定,
+  ROUND(COUNT(line_user_id)::numeric / COUNT(*) * 100, 1) AS 綁定率
+FROM unified_members
+WHERE store IS NOT NULL
+GROUP BY store ORDER BY 綁定率 DESC LIMIT 100
 
 只回傳純 SQL，不要任何解釋、markdown 或反引號。`,
     },
@@ -128,29 +197,30 @@ async function generateInsights(question: string, results: Record<string, unknow
   const text = await chatCompletion([
     {
       role: 'system',
-      content: `你是 277 Bicycle（自行車連鎖店）的經營分析師。基於查詢結果，提供 2-3 條洞察。
+      content: `你是 277 Bicycle 的數據分析師。根據查詢結果產出 2-3 條實用洞察。
 
-五間門市：台南（旗艦店最大）、台北、台中、高雄、美術（最小店）。
+## 277 門市
+台南（旗艦店）｜高雄（南部第二店）｜台中（家庭客群）｜台北（高端都會）｜美術（精品小店）
 
-## 嚴格規則
-1. 每條 30-50 字，直接講重點
-2. 必須從數據中計算出新資訊（佔比、倍數、差距、排名變化），不要只複述查詢結果裡已有的數字
-3. 禁止使用的詞：「亮眼」「值得關注」「建議加強」「需要檢討」「持續關注」「進一步分析」
-4. 每條必須有一個具體行動或判斷，例如：「應檢查是否為人員異動」「可測試將X策略導入Y店」
-5. 語氣：簡潔、直接、像看數字說話的分析師
+## 每條洞察必須包含
+1. 從數據「算出」的新數字（佔比、倍數差距、平均值、成長率）—— 不要只複述原始數字
+2. 一個具體可執行的行動建議（例如：查排班、調品項、啟動促銷）
+3. 控制在 30-60 字
+
+## 禁止使用的空話
+亮眼、值得關注、建議加強、需要檢討、持續關注、進一步分析、表現不錯、表現突出、值得肯定
 
 ## 範例
-好：「台中客單價 $12.3萬 = 台南 2.1 倍，高單價車款集中，台南可引進同款測試」
-好：「美術月營收 70 萬佔總營收 8%，若月租+人事超過 20 萬則虧損」
-好：「高雄連續兩月衰退（-15%→-23%），非季節因素，查人員或周邊施工」
-壞：「台南店營收最高，表現亮眼」
-壞：「建議各門市加強行銷以提升業績」
+資料：[{門市:台南, 營收:5000000}, {門市:高雄, 營收:2000000}, {門市:美術, 營收:600000}]
+1. 台南佔總營收 42% 是高雄 2.5 倍，高雄應檢查是否人力不足或熱銷品項缺貨
+2. 美術營收 60 萬僅佔 5%，若月租金超過 15 萬已接近損益平衡，可考慮縮減營業日
+3. 前兩店合計佔 72%，行銷預算應集中投放台南和高雄
 
-每條洞察一行，數字編號，不要其他格式。`,
+每條一行，數字編號，不要其他格式。`,
     },
     {
       role: 'user',
-      content: `查詢問題：${question}\n查詢結果：${JSON.stringify(results.slice(0, 50))}`,
+      content: `問題：${question}\n資料：${JSON.stringify(results.slice(0, 50))}`,
     },
   ]);
 
@@ -249,16 +319,23 @@ export async function askQuestion(question: string, context?: string[]): Promise
   // 檢測非資料查詢的元問題（meta-questions）
   const metaPatterns = [
     /為什麼.*不出來/,
+    /為什麼.*看不到/,
+    /為什麼.*沒有/,
     /為什麼.*失敗/,
     /為什麼.*錯/,
+    /為什麼.*不能/,
+    /為什麼.*無法/,
     /為何.*不/,
     /怎麼.*錯/,
+    /怎麼.*不/,
     /什麼意思/,
     /解釋.*一下/,
     /你.*可以/,
     /你.*會/,
     /你是誰/,
     /幫我.*什麼/,
+    /哪裡.*問題/,
+    /出.*什麼.*問題/,
   ];
 
   if (metaPatterns.some(p => p.test(question))) {

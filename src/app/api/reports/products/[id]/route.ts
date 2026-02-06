@@ -55,7 +55,8 @@ export async function GET(
         price,
         total,
         order_number,
-        member_name
+        member_name,
+        product_name
       FROM member_transactions
       WHERE product_id = $1
         AND transaction_type = '收銀'

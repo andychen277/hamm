@@ -6,10 +6,12 @@ const TOKEN_NAME = 'hamm_token';
 const TOKEN_MAX_AGE = 7 * 24 * 60 * 60; // 7 days in seconds
 
 export interface JwtPayload {
-  sub: string;        // line_user_id or 'pin_user'
+  sub: string;        // staff_id or 'pin_user'
   name: string;
-  role: 'owner' | 'manager' | 'staff';
+  role: 'admin' | 'owner' | 'manager' | 'staff';
   store_access: string[];
+  staff_id?: number;
+  store?: string | null;
   iat?: number;
   exp?: number;
 }

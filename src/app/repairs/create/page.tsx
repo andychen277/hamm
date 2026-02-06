@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 
@@ -11,6 +11,13 @@ interface PurchaseItem {
   product_id: string;
   transaction_date: string;
   store: string;
+}
+
+interface StaffMember {
+  id: number;
+  name: string;
+  store: string;
+  telegram_chat_id: string | null;
 }
 
 export default function CreateRepairPage() {
@@ -34,6 +41,64 @@ export default function CreateRepairPage() {
   // Purchase history state
   const [purchaseHistory, setPurchaseHistory] = useState<PurchaseItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // CC state
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [allStaffList, setAllStaffList] = useState<StaffMember[]>([]);
+  const [ccList, setCcList] = useState<string[]>([]);
+  const [showCcPicker, setShowCcPicker] = useState(false);
+  const [showStaffPicker, setShowStaffPicker] = useState(false);
+  const [currentUserName, setCurrentUserName] = useState('');
+
+  // Get user info from token and fetch staff list
+  useEffect(() => {
+    // Parse token to get current user
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('hamm_token='))
+      ?.split('=')[1];
+
+    let userName = '';
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.name) {
+          userName = payload.name;
+          setCurrentUserName(userName);
+          setStaffName(userName); // Default to current user
+        }
+        if (payload.store) {
+          setStore(payload.store);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Fetch staff list
+    fetch('/api/staff')
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) {
+          // Sort: current user first, then by store and name
+          const sorted = [...json.data].sort((a: StaffMember, b: StaffMember) => {
+            if (a.name === userName) return -1;
+            if (b.name === userName) return 1;
+            return (a.store || '').localeCompare(b.store || '') || a.name.localeCompare(b.name);
+          });
+          setAllStaffList(sorted);
+          // Only staff with Telegram for CC
+          setStaffList(sorted.filter((s: StaffMember) => s.telegram_chat_id));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const toggleCc = (name: string) => {
+    setCcList(prev =>
+      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+    );
+  };
 
   // Fetch purchase history from member transactions
   const fetchPurchaseHistory = async (memberPhone: string) => {
@@ -132,6 +197,7 @@ export default function CreateRepairPage() {
           technician: technician || undefined,
           store,
           staffName: staffName || undefined,
+          ccList: ccList.length > 0 ? ccList : undefined,
         }),
       });
 
@@ -366,17 +432,112 @@ export default function CreateRepairPage() {
 
         {/* Staff Name (optional) */}
         <div className="rounded-2xl p-4" style={{ background: 'var(--color-bg-card)' }}>
-          <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--color-text-muted)' }}>
+          <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--color-text-muted)' }}>
             開單人員（選填）
           </label>
-          <input
-            type="text"
-            value={staffName}
-            onChange={e => setStaffName(e.target.value)}
-            placeholder="留空則顯示 Hamm"
-            className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-            style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
-          />
+
+          {/* Selected staff display */}
+          {staffName && (
+            <div className="flex items-center gap-2 mb-3">
+              <span
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm"
+                style={{ background: 'var(--color-accent)', color: '#fff' }}
+              >
+                {staffName}
+                <button type="button" onClick={() => setStaffName('')} className="ml-1 opacity-80 hover:opacity-100">×</button>
+              </span>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setShowStaffPicker(!showStaffPicker)}
+            className="px-3 py-2 rounded-lg text-sm"
+            style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-secondary)' }}
+          >
+            {showStaffPicker ? '收起' : staffName ? '更換人員' : '選擇員工'}
+          </button>
+
+          {/* Staff picker dropdown */}
+          {showStaffPicker && allStaffList.length > 0 && (
+            <div className="mt-2 p-2 rounded-lg max-h-48 overflow-y-auto" style={{ background: 'var(--color-bg-card-alt)' }}>
+              <div className="space-y-1">
+                {allStaffList.map(staff => (
+                  <button
+                    key={staff.id}
+                    type="button"
+                    onClick={() => { setStaffName(staff.name); setShowStaffPicker(false); }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors hover:opacity-80"
+                    style={{
+                      background: staffName === staff.name ? 'var(--color-accent)' : 'var(--color-bg-card)',
+                      color: staffName === staff.name ? '#fff' : 'var(--color-text-primary)',
+                    }}
+                  >
+                    <span>{staff.name}</span>
+                    <span className="text-xs opacity-70">{staff.store}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* CC Recipients */}
+        <div className="rounded-2xl p-4" style={{ background: 'var(--color-bg-card)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              📧 CC 副本通知（選填）
+            </label>
+            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              {ccList.length > 0 ? `已選 ${ccList.length} 人` : ''}
+            </span>
+          </div>
+
+          {ccList.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {ccList.map(name => (
+                <span
+                  key={name}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs"
+                  style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
+                >
+                  {name}
+                  <button type="button" onClick={() => toggleCc(name)} className="ml-1 opacity-60 hover:opacity-100">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setShowCcPicker(!showCcPicker)}
+            className="px-3 py-2 rounded-lg text-sm"
+            style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-secondary)' }}
+          >
+            {showCcPicker ? '收起' : '選擇通知對象'}
+          </button>
+
+          {showCcPicker && staffList.length > 0 && (
+            <div className="mt-3 p-3 rounded-lg max-h-48 overflow-y-auto" style={{ background: 'var(--color-bg-card-alt)' }}>
+              <div className="space-y-2">
+                {staffList.map(staff => (
+                  <button
+                    key={staff.id}
+                    type="button"
+                    onClick={() => toggleCc(staff.name)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors"
+                    style={{
+                      background: ccList.includes(staff.name) ? 'var(--color-accent)' : 'var(--color-bg-card)',
+                      color: ccList.includes(staff.name) ? '#fff' : 'var(--color-text-primary)',
+                    }}
+                  >
+                    <span>{staff.name}</span>
+                    <span className="text-xs opacity-70">{staff.store}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Submit Button */}

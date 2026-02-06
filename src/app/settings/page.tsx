@@ -7,27 +7,35 @@ import BottomNav from '@/components/BottomNav';
 interface Staff {
   id: number;
   name: string;
-  store: string;
+  store: string | null;
   role: string;
-  line_bound: boolean;
-  line_user_id: string | null;
-  telegram_bound: boolean;
+  telegram_user_id: string | null;
   telegram_username: string | null;
+  telegram_bound: boolean;
+  is_active: boolean;
 }
+
+const STORES = ['台南', '高雄', '台中', '台北', '美術'];
+const ROLES = ['admin', 'manager', 'staff'];
 
 export default function SettingsPage() {
   const router = useRouter();
   const [staffList, setStaffList] = useState<Staff[]>([]);
-  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
-  const [bindCode, setBindCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [editingLineId, setEditingLineId] = useState<number | null>(null);
-  const [lineIdInput, setLineIdInput] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+
+  // Form state
+  const [formName, setFormName] = useState('');
+  const [formStore, setFormStore] = useState('');
+  const [formRole, setFormRole] = useState('staff');
+  const [formTelegramId, setFormTelegramId] = useState('');
+  const [formTelegramUsername, setFormTelegramUsername] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const fetchStaff = useCallback(async () => {
     try {
-      const res = await fetch('/api/staff');
+      const res = await fetch('/api/staff?active=false');
       const json = await res.json();
       if (json.success) {
         setStaffList(json.data);
@@ -43,44 +51,83 @@ export default function SettingsPage() {
     fetchStaff();
   }, [fetchStaff]);
 
-  const generateBindCode = async (staff: Staff) => {
-    setGenerating(true);
-    setSelectedStaff(staff);
-    setBindCode(null);
+  const resetForm = () => {
+    setFormName('');
+    setFormStore('');
+    setFormRole('staff');
+    setFormTelegramId('');
+    setFormTelegramUsername('');
+    setShowAddForm(false);
+    setEditingStaff(null);
+  };
 
+  const openEditForm = (staff: Staff) => {
+    setEditingStaff(staff);
+    setFormName(staff.name);
+    setFormStore(staff.store || '');
+    setFormRole(staff.role);
+    setFormTelegramId(staff.telegram_user_id || '');
+    setFormTelegramUsername(staff.telegram_username || '');
+    setShowAddForm(true);
+  };
+
+  const handleSave = async () => {
+    if (!formName.trim()) {
+      alert('請輸入姓名');
+      return;
+    }
+
+    setSaving(true);
     try {
-      const res = await fetch('/api/staff/bind', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staffId: staff.id }),
-      });
-      const json = await res.json();
+      const body = {
+        name: formName.trim(),
+        store: formStore || null,
+        role: formRole,
+        telegram_user_id: formTelegramId.trim() || null,
+        telegram_username: formTelegramUsername.trim() || null,
+      };
 
+      let res;
+      if (editingStaff) {
+        res = await fetch(`/api/staff/${editingStaff.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      } else {
+        res = await fetch('/api/staff', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      }
+
+      const json = await res.json();
       if (json.success) {
-        setBindCode(json.data.bindCode);
+        resetForm();
+        fetchStaff();
+      } else {
+        alert(json.error || '儲存失敗');
       }
     } catch {
-      // ignore
+      alert('網路錯誤');
     } finally {
-      setGenerating(false);
+      setSaving(false);
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
+  const handleToggleActive = async (staff: Staff) => {
+    const action = staff.is_active ? '停用' : '啟用';
+    if (!confirm(`確定要${action} ${staff.name} 嗎？`)) return;
 
-  const saveLineId = async (staffId: number, lineUserId: string) => {
     try {
-      const res = await fetch(`/api/staff/${staffId}`, {
+      const res = await fetch(`/api/staff/${staff.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ line_user_id: lineUserId || null }),
+        body: JSON.stringify({ is_active: !staff.is_active }),
       });
       const json = await res.json();
       if (json.success) {
-        setEditingLineId(null);
-        setLineIdInput('');
         fetchStaff();
       }
     } catch {
@@ -88,171 +135,233 @@ export default function SettingsPage() {
     }
   };
 
-  const clearLineId = async (staffId: number) => {
-    if (!confirm('確定要解除此員工的 LINE 綁定嗎？')) return;
-    await saveLineId(staffId, '');
-  };
-
   return (
     <div className="pb-20 min-h-screen">
       {/* Header */}
-      <div className="px-5 pt-12 pb-3 flex items-center gap-3">
-        <button onClick={() => router.back()} className="text-xl">←</button>
-        <h1 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-          ⚙️ 設定
-        </h1>
+      <div className="px-5 pt-12 pb-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.back()} className="text-xl">←</button>
+          <h1 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
+            ⚙️ 設定
+          </h1>
+        </div>
+        {!showAddForm && (
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="text-sm px-3 py-1.5 rounded-lg"
+            style={{ background: 'var(--color-accent)', color: '#fff' }}
+          >
+            + 新增員工
+          </button>
+        )}
       </div>
 
       <div className="px-5">
-        {/* LINE Login Binding Section */}
-        <div className="rounded-2xl p-4 mb-4" style={{ background: 'var(--color-bg-card)' }}>
-          <h3 className="text-[13px] font-semibold mb-3" style={{ color: 'var(--color-text-primary)' }}>
-            🔐 LINE 登入權限
-          </h3>
+        {/* Add/Edit Form */}
+        {showAddForm && (
+          <div className="rounded-2xl p-4 mb-4" style={{ background: 'var(--color-bg-card)' }}>
+            <h3 className="text-[13px] font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
+              {editingStaff ? `✏️ 編輯 ${editingStaff.name}` : '➕ 新增員工'}
+            </h3>
 
-          <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
-            員工綁定 LINE 後可使用 LINE 登入 Hamm 系統。
-            <br />
-            員工首次點擊 LINE 登入會顯示 LINE ID，複製後貼到這裡。
-          </p>
+            <div className="space-y-3">
+              {/* Name */}
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                  姓名 *
+                </label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="員工姓名"
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                  style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
+                />
+              </div>
 
-          {loading ? (
-            <div className="flex items-center justify-center h-20">
-              <div className="w-6 h-6 border-2 rounded-full animate-spin"
-                style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {staffList.map((staff) => (
-                <div
-                  key={`line-${staff.id}`}
-                  className="p-3 rounded-xl"
-                  style={{ background: 'var(--color-bg-card-alt)' }}
+              {/* Store */}
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                  門市
+                </label>
+                <select
+                  value={formStore}
+                  onChange={(e) => setFormStore(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                  style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                        {staff.name}
-                      </span>
-                      <span className="text-xs ml-2 px-1.5 py-0.5 rounded"
-                        style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-muted)' }}>
-                        {staff.role}
-                      </span>
-                      {staff.store && (
-                        <span className="text-xs ml-1" style={{ color: 'var(--color-text-muted)' }}>
-                          {staff.store}
-                        </span>
-                      )}
-                    </div>
-                    {staff.line_bound ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs px-2 py-1 rounded-full"
-                          style={{ background: 'var(--color-positive)', color: '#fff' }}>
-                          ✓ 已綁定
-                        </span>
-                        <button
-                          onClick={() => clearLineId(staff.id)}
-                          className="text-xs px-2 py-1 rounded"
-                          style={{ color: 'var(--color-negative)' }}
-                        >
-                          解除
-                        </button>
-                      </div>
-                    ) : editingLineId === staff.id ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={lineIdInput}
-                          onChange={e => setLineIdInput(e.target.value)}
-                          placeholder="貼上 LINE ID"
-                          className="w-32 text-xs px-2 py-1 rounded outline-none"
-                          style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-primary)' }}
-                        />
-                        <button
-                          onClick={() => saveLineId(staff.id, lineIdInput)}
-                          className="text-xs px-2 py-1 rounded"
-                          style={{ background: 'var(--color-positive)', color: '#fff' }}
-                        >
-                          儲存
-                        </button>
-                        <button
-                          onClick={() => { setEditingLineId(null); setLineIdInput(''); }}
-                          className="text-xs px-2 py-1"
-                          style={{ color: 'var(--color-text-muted)' }}
-                        >
-                          取消
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setEditingLineId(staff.id)}
-                        className="text-xs px-3 py-1.5 rounded-lg"
-                        style={{ background: 'var(--color-accent)', color: '#fff' }}
-                      >
-                        綁定 LINE
-                      </button>
-                    )}
-                  </div>
-                  {staff.line_user_id && (
-                    <div className="text-xs font-mono truncate" style={{ color: 'var(--color-text-muted)' }}>
-                      {staff.line_user_id}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                  <option value="">全部門市</option>
+                  {STORES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
 
-        {/* Telegram Binding Section */}
+              {/* Role */}
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                  角色
+                </label>
+                <select
+                  value={formRole}
+                  onChange={(e) => setFormRole(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                  style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
+                >
+                  {ROLES.map(r => (
+                    <option key={r} value={r}>
+                      {r === 'admin' ? '管理員' : r === 'manager' ? '店長' : '店員'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Telegram User ID */}
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                  Telegram User ID（登入用）
+                </label>
+                <input
+                  type="text"
+                  value={formTelegramId}
+                  onChange={(e) => setFormTelegramId(e.target.value)}
+                  placeholder="例：123456789"
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono"
+                  style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
+                />
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                  員工傳訊息給 @userinfobot 可取得 ID
+                </p>
+              </div>
+
+              {/* Telegram Username */}
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                  Telegram Username（選填）
+                </label>
+                <input
+                  type="text"
+                  value={formTelegramUsername}
+                  onChange={(e) => setFormTelegramUsername(e.target.value)}
+                  placeholder="例：@username"
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                  style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex-1 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50"
+                  style={{ background: 'var(--color-accent)', color: '#fff' }}
+                >
+                  {saving ? '儲存中...' : '儲存'}
+                </button>
+                <button
+                  onClick={resetForm}
+                  className="px-4 py-2.5 rounded-lg text-sm"
+                  style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-secondary)' }}
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Staff List */}
         <div className="rounded-2xl p-4 mb-4" style={{ background: 'var(--color-bg-card)' }}>
           <h3 className="text-[13px] font-semibold mb-3" style={{ color: 'var(--color-text-primary)' }}>
-            📱 Telegram 通知綁定
+            👥 員工列表
           </h3>
 
           <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
-            綁定後，當有新任務指派給您時，會透過 Telegram 推送通知。
+            員工需有 Telegram User ID 才能登入 Hamm 系統
           </p>
 
           {loading ? (
             <div className="flex items-center justify-center h-20">
               <div className="w-6 h-6 border-2 rounded-full animate-spin"
                 style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+            </div>
+          ) : staffList.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                尚無員工資料
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
               {staffList.map((staff) => (
                 <div
                   key={staff.id}
-                  className="flex items-center justify-between p-3 rounded-xl"
-                  style={{ background: 'var(--color-bg-card-alt)' }}
+                  className="p-3 rounded-xl"
+                  style={{
+                    background: 'var(--color-bg-card-alt)',
+                    opacity: staff.is_active ? 1 : 0.5,
+                  }}
                 >
-                  <div>
-                    <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                      {staff.name}
-                    </span>
-                    {staff.store && (
-                      <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>
-                        {staff.store}
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                        {staff.name}
                       </span>
-                    )}
+                      <span className="text-xs px-1.5 py-0.5 rounded"
+                        style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-muted)' }}>
+                        {staff.role === 'admin' ? '管理員' : staff.role === 'manager' ? '店長' : '店員'}
+                      </span>
+                      {staff.store && (
+                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                          {staff.store}
+                        </span>
+                      )}
+                      {!staff.is_active && (
+                        <span className="text-xs px-1.5 py-0.5 rounded"
+                          style={{ background: 'var(--color-negative)', color: '#fff' }}>
+                          已停用
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEditForm(staff)}
+                        className="text-xs px-2 py-1 rounded"
+                        style={{ color: 'var(--color-accent)' }}
+                      >
+                        編輯
+                      </button>
+                      <button
+                        onClick={() => handleToggleActive(staff)}
+                        className="text-xs px-2 py-1 rounded"
+                        style={{ color: staff.is_active ? 'var(--color-negative)' : 'var(--color-positive)' }}
+                      >
+                        {staff.is_active ? '停用' : '啟用'}
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {staff.telegram_bound ? (
-                      <span className="text-xs px-2 py-1 rounded-full"
-                        style={{ background: 'var(--color-positive)', color: '#fff' }}>
-                        ✓ 已綁定
-                      </span>
+                  {/* Telegram Info */}
+                  <div className="flex items-center gap-2 mt-1">
+                    {staff.telegram_user_id ? (
+                      <>
+                        <span className="text-xs px-2 py-0.5 rounded-full"
+                          style={{ background: 'var(--color-positive)', color: '#fff' }}>
+                          ✓ 可登入
+                        </span>
+                        <span className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>
+                          ID: {staff.telegram_user_id}
+                        </span>
+                        {staff.telegram_username && (
+                          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                            ({staff.telegram_username})
+                          </span>
+                        )}
+                      </>
                     ) : (
-                      <button
-                        onClick={() => generateBindCode(staff)}
-                        disabled={generating && selectedStaff?.id === staff.id}
-                        className="text-xs px-3 py-1.5 rounded-lg transition-opacity disabled:opacity-50"
-                        style={{ background: 'var(--color-accent)', color: '#fff' }}
-                      >
-                        {generating && selectedStaff?.id === staff.id ? '產生中...' : '綁定'}
-                      </button>
+                      <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                        尚未設定 Telegram ID（無法登入）
+                      </span>
                     )}
                   </div>
                 </div>
@@ -261,73 +370,17 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {/* Bind Code Modal */}
-        {bindCode && selectedStaff && (
-          <div className="rounded-2xl p-4 mb-4" style={{ background: 'var(--color-bg-card)' }}>
-            <h3 className="text-[13px] font-semibold mb-3" style={{ color: 'var(--color-text-primary)' }}>
-              🔐 綁定驗證碼 - {selectedStaff.name}
-            </h3>
-
-            <div className="text-center py-4">
-              <div
-                className="text-2xl font-mono font-bold tracking-widest mb-2"
-                style={{ color: 'var(--color-accent)' }}
-              >
-                {bindCode}
-              </div>
-              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                驗證碼 10 分鐘內有效
-              </p>
-            </div>
-
-            <div className="space-y-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-              <p><b>步驟：</b></p>
-              <p>1. 在 Telegram 搜尋 <b>@Forge277bot</b></p>
-              <p>2. 傳送以下訊息：</p>
-            </div>
-
-            <div
-              className="mt-2 p-3 rounded-lg font-mono text-sm flex items-center justify-between"
-              style={{ background: 'var(--color-bg-card-alt)' }}
-            >
-              <span style={{ color: 'var(--color-text-primary)' }}>/bind {bindCode}</span>
-              <button
-                onClick={() => copyToClipboard(`/bind ${bindCode}`)}
-                className="text-xs px-2 py-1 rounded"
-                style={{ background: 'var(--color-accent)', color: '#fff' }}
-              >
-                複製
-              </button>
-            </div>
-
-            <button
-              onClick={() => {
-                setBindCode(null);
-                setSelectedStaff(null);
-                fetchStaff(); // Refresh list
-              }}
-              className="w-full mt-4 py-2 rounded-lg text-sm"
-              style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-secondary)' }}
-            >
-              關閉
-            </button>
-          </div>
-        )}
-
-        {/* Bot Link */}
+        {/* Help Section */}
         <div className="rounded-2xl p-4 mb-4" style={{ background: 'var(--color-bg-card)' }}>
           <h3 className="text-[13px] font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-            🤖 277 Bike 工作通知 Bot
+            💡 如何取得 Telegram User ID
           </h3>
-          <a
-            href="https://t.me/Forge277bot"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm underline"
-            style={{ color: 'var(--color-accent)' }}
-          >
-            t.me/Forge277bot →
-          </a>
+          <ol className="text-xs space-y-1" style={{ color: 'var(--color-text-secondary)' }}>
+            <li>1. 開啟 Telegram App</li>
+            <li>2. 搜尋 <b>@userinfobot</b></li>
+            <li>3. 傳送任意訊息給它</li>
+            <li>4. 它會回覆你的 User ID（純數字）</li>
+          </ol>
         </div>
 
         {/* Logout */}

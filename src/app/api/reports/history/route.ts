@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       const inventoryQuery = `
         SELECT DISTINCT product_id, product_name, vendor_code, vendor_name, price, cost
         FROM inventory
-        WHERE product_name ILIKE $1 OR product_id ILIKE $1
+        WHERE product_name ILIKE $1 OR product_id ILIKE $1 OR vendor_name ILIKE $1
         ${vendor ? `AND vendor_code ILIKE $2` : ''}
         ORDER BY product_name
         LIMIT 100
@@ -180,23 +180,17 @@ export async function GET(req: NextRequest) {
     // Get purchase summary by year (from purchase_summary table)
     const purchaseQuery = `
       SELECT
-        EXTRACT(YEAR FROM purchase_date)::int AS year,
-        SUM(quantity)::int AS total_qty,
+        EXTRACT(YEAR FROM period_start)::int AS year,
+        SUM(total_qty)::int AS total_qty,
         SUM(total_cost)::numeric AS total_cost
       FROM purchase_summary
       WHERE product_id = ANY($1)
-        AND purchase_date >= CURRENT_DATE - INTERVAL '${yearsBack} years'
-        ${store && store !== 'all' ? `AND store = $2` : ''}
-      GROUP BY EXTRACT(YEAR FROM purchase_date)
+        AND period_start >= CURRENT_DATE - INTERVAL '${yearsBack} years'
+      GROUP BY EXTRACT(YEAR FROM period_start)
       ORDER BY year DESC
     `;
 
-    const purchaseParams: (string | string[])[] = [productIds];
-    if (store && store !== 'all') {
-      purchaseParams.push(store);
-    }
-
-    const purchaseResult = await query(purchaseQuery, purchaseParams);
+    const purchaseResult = await query(purchaseQuery, [productIds]);
 
     // Merge yearly sales with purchase data
     const purchaseByYear = new Map(purchaseResult.rows.map(p => [p.year, p]));

@@ -134,6 +134,54 @@ export const DB_SCHEMA = `
 - result_message: text
 - created_at: timestamp
 
+### inventory (商品庫存, ~40,000 rows)
+- id: integer (PK)
+- product_id: varchar(50) (NOT NULL)
+- product_name: varchar(200)
+- store: varchar(50) — values: 台南, 高雄, 台中, 台北, 美術
+- price: numeric(12,2)
+- quantity: integer
+- vendor_code: varchar(50)
+- updated_at: timestamp
+- UNIQUE(product_id, store)
+
+### purchase_summary (進貨彙總)
+- id: integer (PK)
+- product_id: varchar(50) (NOT NULL)
+- product_name: varchar(200)
+- supplier: varchar(100) — 供應商名稱
+- unit_cost: numeric(12,2) — 單位成本
+- total_qty: integer — 進貨數量
+- total_cost: numeric(12,2) — 總進貨成本
+- period_start: date
+- period_end: date
+- updated_at: timestamp
+
+### repairs (維修記錄, ~350 rows)
+- id: integer (PK)
+- repair_id: varchar(50) (UNIQUE)
+- customer_name: varchar(100)
+- customer_phone: varchar(20)
+- store: varchar(50)
+- repair_date: date
+- repair_desc: text
+- status: varchar(20) — 維修中, 已完修, 已通知, 已取件
+- balance: numeric(12,2)
+- updated_at: timestamp
+
+### customer_orders (客訂記錄, ~400 rows)
+- id: integer (PK)
+- order_id: varchar(50) (UNIQUE)
+- customer_name: varchar(100)
+- customer_phone: varchar(20)
+- store: varchar(50)
+- order_date: date
+- product_name: text
+- status: varchar(20) — 未到, 已到, 已通知, 已取件
+- balance: numeric(12,2)
+- prepay_type: varchar(20)
+- updated_at: timestamp
+
 ### store_revenue_daily (門市每日營收, 含非會員)
 - id: integer (PK)
 - store: varchar(50) — values: 台南, 高雄, 台中, 台北, 美術
@@ -188,6 +236,19 @@ export const DB_SCHEMA = `
 - gold: >= $200,000
 - silver: >= $50,000
 - normal: < $50,000
+
+## New Members Query (重要！)
+- unified_members.created_at 是「資料庫同步時間」，不是「會員實際加入日期」
+- 查詢「本月新會員數」必須用 member_transactions 的首次交易日期：
+  SELECT COUNT(DISTINCT member_phone) as 新增會員數
+  FROM (
+    SELECT member_phone, MIN(transaction_date) as first_date
+    FROM member_transactions
+    WHERE member_phone IS NOT NULL AND member_phone != ''
+    GROUP BY member_phone
+  ) sub
+  WHERE first_date >= '2026-02-01' AND first_date < '2026-03-01'
+- 禁止使用 unified_members.created_at 來計算新會員！
 
 ## Transaction Types
 - 收銀: POS 收銀結帳（營收主要來源，報表唯一計算的類型）

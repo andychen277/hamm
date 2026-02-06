@@ -56,17 +56,24 @@ function StoreTable({ stores }: { stores: StoreRow[] }) {
   );
 }
 
-function ProductList({ products }: { products: ProductRow[] }) {
+function ProductList({ products }: { products: (ProductRow & { product_id?: string })[] }) {
   if (!products.length) return null;
   return (
     <div className="space-y-1.5">
       {products.map((p, i) => (
-        <div key={i} className="flex items-center justify-between text-xs">
+        <Link
+          key={i}
+          href={p.product_id ? `/reports/products/${encodeURIComponent(p.product_id)}` : '/reports/products'}
+          className="flex items-center justify-between text-xs py-1 -mx-1 px-1 rounded active:bg-white/5"
+        >
           <span className="truncate flex-1 mr-2" style={{ color: 'var(--color-text-secondary)' }}>
             {i + 1}. {p.product_name}
           </span>
-          <span className="tabular-nums flex-shrink-0" style={{ color: 'var(--color-text-primary)' }}>{fmt$(p.revenue)}</span>
-        </div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span className="tabular-nums" style={{ color: 'var(--color-text-primary)' }}>{fmt$(p.revenue)}</span>
+            <span style={{ color: 'var(--color-text-muted)' }}>›</span>
+          </div>
+        </Link>
       ))}
     </div>
   );
@@ -193,13 +200,21 @@ export default function ReportsPage() {
             <span className="text-lg">📋</span>
             <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>客訂查詢</span>
           </Link>
+          <Link
+            href="/remittance"
+            className="rounded-xl p-3 flex items-center gap-2"
+            style={{ background: 'var(--color-bg-card)' }}
+          >
+            <span className="text-lg">💰</span>
+            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>匯款查詢</span>
+          </Link>
         </div>
       </div>
 
       {/* Document Creation Section */}
       <div className="px-5 mb-4">
         <p className="text-[11px] mb-2" style={{ color: 'var(--color-text-muted)' }}>單據建立</p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Link
             href="/orders/create"
             className="rounded-xl p-3 flex items-center gap-2"
@@ -215,6 +230,14 @@ export default function ReportsPage() {
           >
             <span className="text-lg">🔧</span>
             <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>新增維修</span>
+          </Link>
+          <Link
+            href="/remittance/create"
+            className="rounded-xl p-3 flex items-center gap-2"
+            style={{ background: 'var(--color-bg-card)' }}
+          >
+            <span className="text-lg">💰</span>
+            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>匯款需求</span>
           </Link>
           <Link
             href="/todo/create"
@@ -313,7 +336,7 @@ export default function ReportsPage() {
                     <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>{report.new_members}</p>
                     <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>新加入</p>
                   </Link>
-                  <Link href="/reports/members?filter=line" className="active:opacity-70">
+                  <Link href="/dashboard/line-binding" className="active:opacity-70">
                     <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--color-accent)' }}>{report.new_line_bindings}</p>
                     <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>LINE 新綁定</p>
                   </Link>
@@ -342,18 +365,23 @@ export default function ReportsPage() {
             </div>
           </Card>
 
-          {/* Level distribution (monthly) */}
+          {/* Level distribution (monthly) - Clickable */}
           {report.level_distribution && (
-            <Card title="📊 會員等級分佈">
-              <div className="space-y-2">
-                {report.level_distribution.map((l: LevelRow) => (
-                  <div key={l.level} className="flex items-center justify-between text-sm">
-                    <span style={{ color: 'var(--color-text-secondary)' }}>{LEVEL_LABELS[l.level] || l.level}</span>
-                    <span className="tabular-nums font-medium" style={{ color: 'var(--color-text-primary)' }}>{l.count.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
+            <Link href="/dashboard/members">
+              <Card title="📊 會員等級分佈">
+                <div className="space-y-2">
+                  {report.level_distribution.map((l: LevelRow) => (
+                    <div key={l.level} className="flex items-center justify-between text-sm">
+                      <span style={{ color: 'var(--color-text-secondary)' }}>{LEVEL_LABELS[l.level] || l.level}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="tabular-nums font-medium" style={{ color: 'var(--color-text-primary)' }}>{l.count.toLocaleString()}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>›</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </Link>
           )}
 
           {/* Service status (daily) - Clickable */}

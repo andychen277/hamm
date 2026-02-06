@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { creator, store, assignee, task_type, related_id, related_name, description } = body;
+    const { creator, store, assignee, task_type, related_id, related_name, description, ccList } = body;
 
     if (!creator || !store) {
       return NextResponse.json(
@@ -94,9 +94,42 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 發送 CC 副本通知
+    let ccNotificationsSent = 0;
+    if (ccList && Array.isArray(ccList) && ccList.length > 0) {
+      for (const ccName of ccList) {
+        // Skip if same as assignee (already notified)
+        if (ccName === assignee) continue;
+
+        try {
+          const staffResult = await query(
+            `SELECT telegram_chat_id FROM staff WHERE name = $1 AND telegram_chat_id IS NOT NULL`,
+            [ccName]
+          );
+
+          if (staffResult.rows.length > 0 && staffResult.rows[0].telegram_chat_id) {
+            await sendTaskNotification({
+              chatId: staffResult.rows[0].telegram_chat_id,
+              taskType: task_type || 'general',
+              creator,
+              store,
+              assignee: assignee || '未指定',
+              relatedName: related_name,
+              description: `[CC 副本] ${description || ''}`,
+              taskId: newTodo.id,
+            });
+            ccNotificationsSent++;
+          }
+        } catch {
+          // ignore individual notification failures
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: newTodo,
+      notificationsSent: ccNotificationsSent + (assignee ? 1 : 0),
     });
   } catch (error) {
     return NextResponse.json(

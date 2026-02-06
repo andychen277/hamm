@@ -108,23 +108,30 @@ export default function ProductDetailPage() {
             </p>
           </div>
 
-          {/* Inventory by Store */}
+          {/* Inventory by Store - Clickable */}
           <Card title="📦 各門市庫存">
             {data.inventory.length === 0 ? (
               <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>無庫存資料</p>
             ) : (
               <div className="space-y-2">
                 {data.inventory.map(inv => (
-                  <div key={inv.store} className="flex items-center justify-between">
+                  <Link
+                    key={inv.store}
+                    href={`/reports/inventory?q=${encodeURIComponent(data.product_id)}&store=${encodeURIComponent(inv.store)}`}
+                    className="flex items-center justify-between py-1 -mx-1 px-1 rounded-lg active:bg-white/5"
+                  >
                     <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 rounded-full" style={{ background: STORE_COLORS[inv.store] || '#64748b' }} />
                       <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{inv.store}</span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>{inv.quantity}</span>
-                      <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>{fmt$(inv.price)}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>{inv.quantity}</span>
+                        <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>{fmt$(inv.price)}</span>
+                      </div>
+                      <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>›</span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
                 <div className="border-t pt-2 mt-2" style={{ borderColor: 'var(--color-bg-card-alt)' }}>
                   <div className="flex justify-between text-sm">
@@ -167,21 +174,37 @@ export default function ProductDetailPage() {
             </Card>
           )}
 
-          {/* Purchase History */}
+          {/* Purchase History - Clickable */}
           {data.purchases.length > 0 && (
             <Card title="📥 進貨記錄">
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {data.purchases.map((p, i) => (
-                  <div key={i} className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                    <div className="flex justify-between">
-                      <span>{p.supplier}</span>
-                      <span className="tabular-nums">{fmt$(p.purchase_cost)}</span>
+                  <Link
+                    key={i}
+                    href={`/reports/purchases/supplier/${encodeURIComponent(p.supplier)}?product_id=${encodeURIComponent(data.product_id)}`}
+                    className="block p-2.5 rounded-xl active:opacity-70 transition-opacity"
+                    style={{ background: 'var(--color-bg-card-alt)' }}
+                  >
+                    <div className="flex justify-between items-start mb-1.5">
+                      <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                        {p.supplier}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--color-positive)' }}>
+                          {fmt$(p.purchase_cost)}
+                        </span>
+                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>›</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between" style={{ color: 'var(--color-text-muted)' }}>
-                      <span>數量: {p.purchase_qty}</span>
-                      <span>單位成本: {fmt$(p.unit_cost)}</span>
+                    <div className="flex justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      <span>
+                        {p.period_start && p.period_end
+                          ? `${new Date(p.period_start).toLocaleDateString('zh-TW')} ~ ${new Date(p.period_end).toLocaleDateString('zh-TW')}`
+                          : '日期未知'}
+                      </span>
+                      <span>數量 {p.purchase_qty} · 單價 {fmt$(p.unit_cost)}</span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </Card>

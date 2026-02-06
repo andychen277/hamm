@@ -9,7 +9,7 @@ export async function GET(
   try {
     const { id } = await params;
     const result = await query(
-      `SELECT id, name, store, role, line_user_id, telegram_chat_id, telegram_username, is_active
+      `SELECT id, name, store, role, telegram_user_id, telegram_username, is_active
        FROM staff WHERE id = $1`,
       [id]
     );
@@ -41,7 +41,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, store, role, line_user_id, is_active } = body;
+    const { name, store, role, telegram_user_id, telegram_username, is_active } = body;
 
     // Build dynamic update query
     const updates: string[] = [];
@@ -60,9 +60,13 @@ export async function PATCH(
       updates.push(`role = $${paramIndex++}`);
       values.push(role);
     }
-    if (line_user_id !== undefined) {
-      updates.push(`line_user_id = $${paramIndex++}`);
-      values.push(line_user_id || null);
+    if (telegram_user_id !== undefined) {
+      updates.push(`telegram_user_id = $${paramIndex++}`);
+      values.push(telegram_user_id || null);
+    }
+    if (telegram_username !== undefined) {
+      updates.push(`telegram_username = $${paramIndex++}`);
+      values.push(telegram_username || null);
     }
     if (is_active !== undefined) {
       updates.push(`is_active = $${paramIndex++}`);

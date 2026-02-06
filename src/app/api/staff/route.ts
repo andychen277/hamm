@@ -10,9 +10,9 @@ export async function GET(req: NextRequest) {
 
     let sql = `
       SELECT id, name, store, role,
-             line_user_id,
-             line_user_id IS NOT NULL as line_bound,
-             telegram_chat_id IS NOT NULL as telegram_bound,
+             telegram_user_id,
+             telegram_user_id AS telegram_chat_id,
+             telegram_user_id IS NOT NULL as telegram_bound,
              telegram_username,
              is_active, created_at
       FROM staff
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, store, role } = body;
+    const { name, store, role, telegram_user_id, telegram_username } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -59,10 +59,10 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await query(`
-      INSERT INTO staff (name, store, role)
-      VALUES ($1, $2, $3)
-      RETURNING id, name, store, role
-    `, [name, store || null, role || 'staff']);
+      INSERT INTO staff (name, store, role, telegram_user_id, telegram_username)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, name, store, role, telegram_user_id, telegram_username
+    `, [name, store || null, role || 'staff', telegram_user_id || null, telegram_username || null]);
 
     return NextResponse.json({
       success: true,

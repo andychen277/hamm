@@ -209,6 +209,7 @@ export async function createOrder(
   };
 
   console.log(`[ERP] 建立客訂: ${fnoa}, 客戶: ${orderData.memberName}, 商品: ${orderData.productDesc}`);
+  console.log(`[ERP] Payload:`, JSON.stringify(payload, null, 2));
 
   try {
     const response = await fetch(`${ERP_BASE_URL}/orderprodvipnew_finish.php`, {
@@ -220,7 +221,24 @@ export async function createOrder(
       body: encodeFormData(payload),
     });
 
+    const responseText = await response.text();
     console.log(`[ERP] 客訂寫入回應: HTTP ${response.status}`);
+    console.log(`[ERP] 回應內容 (前500字):`, responseText.substring(0, 500));
+
+    // 檢查是否需要重新登入
+    if (responseText.includes('login') || responseText.includes('登入') || response.status === 401) {
+      console.error('[ERP] Session 可能已過期，需重新登入');
+      cookies = '';
+      lastLoginTime = 0;
+      return { success: false, orderNumber: '', error: 'ERP Session 過期，請重試' };
+    }
+
+    // 檢查是否有明確錯誤訊息
+    if (responseText.includes('錯誤') || responseText.includes('失敗')) {
+      console.error('[ERP] 客訂寫入可能失敗，回應包含錯誤訊息');
+      return { success: false, orderNumber: fnoa, error: '寫入 ERP 回應異常，請查看 log' };
+    }
+
     return { success: true, orderNumber: fnoa };
   } catch (error) {
     console.error('[ERP] 客訂寫入失敗:', error);
@@ -424,4 +442,183 @@ function getTodayDate(): string {
   // 轉換為台灣時間
   const tw = new Date(now.getTime() + 8 * 60 * 60 * 1000);
   return tw.toISOString().split('T')[0];
+}
+
+// ============================================================
+// 匯款需求
+// ============================================================
+
+export interface RemittanceData {
+  store: string;           // 匯款門市
+  creator: string;         // 建檔人員
+  supplierName: string;    // 廠商簡稱
+  amount: number;          // 需匯金額
+  requestDate: string;     // 需求日期 (YYYY/MM/DD)
+  arrivalStore: string;    // 到貨門市
+  description: string;     // 商品說明
+}
+
+export interface RemittanceRecord {
+  remittanceNo: string;    // 匯款單號
+  supplierName: string;    // 廠商名稱
+  amount: number;          // 需匯金額
+  store: string;           // 匯款門市
+  creator: string;         // 建檔人員
+  requestDate: string;     // 需求日期
+  arrivalStore: string;    // 到貨門市
+  description: string;     // 商品備註
+  status: string;          // 單據狀態 (開單/已匯)
+  paidDate?: string;       // 匯款日期
+  paidAmount?: number;     // 匯款金額
+  paidBy?: string;         // 匯款人員
+  paidNote?: string;       // 匯款備註
+}
+
+/**
+ * 建立匯款需求 → 寫入 ERP
+ */
+export async function createRemittance(
+  data: RemittanceData,
+  storeCode: string
+): Promise<{ success: boolean; remittanceNo: string; error?: string }> {
+  await ensureLogin();
+
+  const fnoa = generateOrderNumber(storeCode);
+  const arrivalStoreCode = STORE_CODES[data.arrivalStore] || storeCode;
+
+  // 日期格式轉換 YYYY-MM-DD → YYYY/MM/DD
+  const requestDate = data.requestDate.replace(/-/g, '/');
+
+  const payload = {
+    ston: storeCode,                    // 匯款門市
+    arman: data.creator,                // 建檔人員
+    scnm: data.supplierName,            // 廠商簡稱
+    pamt01: String(data.amount),        // 需匯金額
+    urdate: requestDate,                // 需求日期
+    ston2: arrivalStoreCode,            // 到貨門市
+    memo1: data.description,            // 商品說明
+    fnoa: fnoa,                         // 單號
+  };
+
+  console.log(`[ERP] 建立匯款需求: ${fnoa}, 廠商: ${data.supplierName}, 金額: ${data.amount}`);
+
+  try {
+    const response = await fetch(`${ERP_BASE_URL}/moneytrn_finish.php`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': cookies,
+      },
+      body: encodeFormData(payload),
+    });
+
+    console.log(`[ERP] 匯款需求寫入回應: HTTP ${response.status}`);
+    return { success: true, remittanceNo: fnoa };
+  } catch (error) {
+    console.error('[ERP] 匯款需求寫入失敗:', error);
+    return { success: false, remittanceNo: '', error: String(error) };
+  }
+}
+
+/**
+ * 查詢匯款列表
+ */
+export async function queryRemittances(
+  startDate: string,
+  endDate: string,
+  store?: string,
+  status?: string
+): Promise<{ success: boolean; data?: RemittanceRecord[]; error?: string }> {
+  await ensureLogin();
+
+  const erpStartDate = startDate.replace(/-/g, '/');
+  const erpEndDate = endDate.replace(/-/g, '/');
+  const storeCode = store ? (STORE_CODES[store] || 'ALL') : 'ALL';
+
+  const payload = {
+    ssdate: erpStartDate,
+    esdate: erpEndDate,
+    ston: storeCode,
+    cstate: status || 'ALL',
+    submit: '查詢',
+  };
+
+  console.log(`[ERP] 查詢匯款列表: ${erpStartDate} ~ ${erpEndDate}, 門市: ${storeCode}`);
+
+  try {
+    const response = await fetch(`${ERP_BASE_URL}/moneytrnquery1.php`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': cookies,
+      },
+      body: encodeFormData(payload),
+    });
+
+    const html = await response.text();
+    const records = parseRemittanceHTML(html);
+
+    console.log(`[ERP] 匯款查詢結果: ${records.length} 筆`);
+    return { success: true, data: records };
+  } catch (error) {
+    console.error('[ERP] 匯款查詢失敗:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * 解析匯款查詢 HTML
+ */
+function parseRemittanceHTML(html: string): RemittanceRecord[] {
+  const records: RemittanceRecord[] = [];
+
+  try {
+    // 找到表格內容
+    const tbodyStart = html.indexOf('<tbody>');
+    if (tbodyStart === -1) return records;
+
+    let tbodyEnd = html.indexOf('</tbody>');
+    if (tbodyEnd === -1) tbodyEnd = html.length;
+    const content = html.substring(tbodyStart + 7, tbodyEnd);
+
+    let pos = 0;
+    while (true) {
+      const trStart = content.indexOf('<tr>', pos);
+      if (trStart === -1) break;
+      const trEnd = content.indexOf('</tr>', trStart);
+      if (trEnd === -1) break;
+      const row = content.substring(trStart, trEnd + 5);
+      pos = trEnd + 5;
+
+      const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
+      if (cells.length < 10) continue;
+
+      const getValue = (cell: string | undefined) =>
+        cell ? cell.replace(/<td[^>]*>|<\/td>/g, '').replace(/<[^>]*>/g, '').trim() : '';
+
+      // 根據截圖的表格順序解析
+      // 廠商名稱(0), 需匯金額(1), 匯款門市(2), 建檔人員(3), 需求日期(4),
+      // 到貨門市(5), 商品備註(6), 匯款日期(7), 匯款金額(8), 匯款備註(9),
+      // 匯款單號(10), 匯款人員(11), 單據狀態(12)
+      records.push({
+        supplierName: getValue(cells[0]),
+        amount: parseFloat(getValue(cells[1]).replace(/,/g, '')) || 0,
+        store: getValue(cells[2]),
+        creator: getValue(cells[3]),
+        requestDate: getValue(cells[4]),
+        arrivalStore: getValue(cells[5]),
+        description: getValue(cells[6]),
+        paidDate: getValue(cells[7]) || undefined,
+        paidAmount: parseFloat(getValue(cells[8]).replace(/,/g, '')) || undefined,
+        paidNote: getValue(cells[9]) || undefined,
+        remittanceNo: getValue(cells[10]),
+        paidBy: getValue(cells[11]) || undefined,
+        status: getValue(cells[12]) || '開單',
+      });
+    }
+  } catch (error) {
+    console.error('[ERP] 匯款 HTML 解析失敗:', error);
+  }
+
+  return records;
 }

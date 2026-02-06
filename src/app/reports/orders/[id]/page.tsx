@@ -84,7 +84,9 @@ export default function OrderDetailPage() {
       try {
         const res = await fetch(`/api/reports/orders/${encodeURIComponent(orderId)}`);
         const json = await res.json();
-        if (json.success) setData(json.data);
+        if (json.success) {
+          setData(json.data);
+        }
       } catch {
         // ignore
       } finally {

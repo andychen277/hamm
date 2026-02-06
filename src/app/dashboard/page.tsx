@@ -9,11 +9,12 @@ import { useCountUp } from '@/hooks/useCountUp';
 // KPI 對應的連結
 const KPI_LINKS: Record<string, string> = {
   '今日營收': '/dashboard/revenue/today',
+  '今日營收 (即時)': '/dashboard/revenue/today',
   '本月營收': '/dashboard/revenue/this-month',
-  '總會員數': '/reports/members',
+  '總會員數': '/dashboard/members',
   '本月新會員': '/dashboard/new-members',
-  'LINE 綁定率': '/reports/members?filter=line',
-  '平均客單價': '/dashboard/revenue/this-month',
+  'LINE 綁定率': '/dashboard/line-binding',
+  '待認證': '/binding/verify',
 };
 
 interface KpiItem {
@@ -29,7 +30,7 @@ interface KpiData {
   total_members: KpiItem;
   new_members: KpiItem;
   line_bindind_rate: KpiItem;
-  avg_order_value: KpiItem;
+  pending_bindings: KpiItem;
 }
 
 interface StoreData {
@@ -53,7 +54,7 @@ function formatNumber(n: number): string {
 
 function AnimatedKpiCard({ item }: { item: KpiItem }) {
   const isPercent = item.label.includes('率');
-  const isCount = item.label.includes('會員');
+  const isCount = item.label.includes('會員') || item.label === '待認證';
   const animated = useCountUp(item.value);
 
   const displayValue = isPercent
@@ -110,8 +111,8 @@ export default function DashboardPage() {
       setLoading(true);
     }
     try {
-      // 下拉刷新時使用即時營收（從 ERP 即時查詢）
-      const kpiUrl = isRefresh ? '/api/dashboard/kpi?live=true' : '/api/dashboard/kpi';
+      // 永遠使用即時營收（從 ERP 即時查詢）
+      const kpiUrl = '/api/dashboard/kpi?live=true';
       const [kpiRes, storesRes, statusRes] = await Promise.all([
         fetch(kpiUrl),
         fetch('/api/dashboard/stores'),

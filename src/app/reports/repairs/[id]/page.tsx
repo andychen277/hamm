@@ -126,7 +126,9 @@ export default function RepairDetailPage() {
       try {
         const res = await fetch(`/api/reports/repairs/${encodeURIComponent(repairId)}`);
         const json = await res.json();
-        if (json.success) setData(json.data);
+        if (json.success) {
+          setData(json.data);
+        }
       } catch {
         // ignore
       } finally {

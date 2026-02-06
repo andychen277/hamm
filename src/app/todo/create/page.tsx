@@ -6,6 +6,13 @@ import BottomNav from '@/components/BottomNav';
 
 const STORES = ['台南', '高雄', '台中', '台北', '美術'];
 
+interface StaffMember {
+  id: number;
+  name: string;
+  store: string;
+  telegram_chat_id: string | null;
+}
+
 function CreateTodoForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -23,6 +30,63 @@ function CreateTodoForm() {
   const [relatedName, setRelatedName] = useState(preRelatedName);
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // CC state
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [allStaffList, setAllStaffList] = useState<StaffMember[]>([]);
+  const [ccList, setCcList] = useState<string[]>([]);
+  const [showCcPicker, setShowCcPicker] = useState(false);
+  const [showCreatorPicker, setShowCreatorPicker] = useState(false);
+  const [showAssigneePicker, setShowAssigneePicker] = useState(false);
+
+  // Get user info from token and fetch staff list
+  useEffect(() => {
+    // Parse token to get current user
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('hamm_token='))
+      ?.split('=')[1];
+
+    let userName = '';
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.name) {
+          userName = payload.name;
+          setCreator(userName); // Default to current user
+        }
+        if (payload.store) {
+          setStore(payload.store);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Fetch staff list
+    fetch('/api/staff')
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) {
+          // Sort: current user first, then by store and name
+          const sorted = [...json.data].sort((a: StaffMember, b: StaffMember) => {
+            if (a.name === userName) return -1;
+            if (b.name === userName) return 1;
+            return (a.store || '').localeCompare(b.store || '') || a.name.localeCompare(b.name);
+          });
+          setAllStaffList(sorted);
+          // Only staff with Telegram for CC
+          setStaffList(sorted.filter((s: StaffMember) => s.telegram_chat_id));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const toggleCc = (name: string) => {
+    setCcList(prev =>
+      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+    );
+  };
 
   // Restore draft from session storage on mount
   useEffect(() => {
@@ -93,6 +157,7 @@ function CreateTodoForm() {
           related_id: relatedId || null,
           related_name: relatedName || null,
           description: description.trim() || null,
+          ccList: ccList.length > 0 ? ccList : undefined,
         }),
       });
       const json = await res.json();
@@ -136,20 +201,49 @@ function CreateTodoForm() {
         <div className="rounded-2xl p-4 mb-4" style={{ background: 'var(--color-bg-card)' }}>
           {/* Creator */}
           <div className="mb-4">
-            <label className="text-xs block mb-1" style={{ color: 'var(--color-text-muted)' }}>
+            <label className="text-xs block mb-2" style={{ color: 'var(--color-text-muted)' }}>
               建檔人員 *
             </label>
-            <input
-              type="text"
-              value={creator}
-              onChange={(e) => setCreator(e.target.value)}
-              placeholder="輸入姓名..."
-              className="w-full h-11 px-4 rounded-xl text-sm outline-none"
-              style={{
-                background: 'var(--color-bg-card-alt)',
-                color: 'var(--color-text-primary)',
-              }}
-            />
+            {creator && (
+              <div className="flex items-center gap-2 mb-2">
+                <span
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm"
+                  style={{ background: 'var(--color-accent)', color: '#fff' }}
+                >
+                  {creator}
+                  <button type="button" onClick={() => setCreator('')} className="ml-1 opacity-80 hover:opacity-100">×</button>
+                </span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowCreatorPicker(!showCreatorPicker)}
+              className="px-3 py-2 rounded-lg text-sm"
+              style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-secondary)' }}
+            >
+              {showCreatorPicker ? '收起' : creator ? '更換人員' : '選擇員工'}
+            </button>
+            {showCreatorPicker && allStaffList.length > 0 && (
+              <div className="mt-2 p-2 rounded-lg max-h-48 overflow-y-auto" style={{ background: 'var(--color-bg-card-alt)' }}>
+                <div className="space-y-1">
+                  {allStaffList.map(staff => (
+                    <button
+                      key={staff.id}
+                      type="button"
+                      onClick={() => { setCreator(staff.name); setShowCreatorPicker(false); }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors hover:opacity-80"
+                      style={{
+                        background: creator === staff.name ? 'var(--color-accent)' : 'var(--color-bg-card)',
+                        color: creator === staff.name ? '#fff' : 'var(--color-text-primary)',
+                      }}
+                    >
+                      <span>{staff.name}</span>
+                      <span className="text-xs opacity-70">{staff.store}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Store */}
@@ -174,20 +268,49 @@ function CreateTodoForm() {
 
           {/* Assignee */}
           <div className="mb-4">
-            <label className="text-xs block mb-1" style={{ color: 'var(--color-text-muted)' }}>
+            <label className="text-xs block mb-2" style={{ color: 'var(--color-text-muted)' }}>
               指派人員
             </label>
-            <input
-              type="text"
-              value={assignee}
-              onChange={(e) => setAssignee(e.target.value)}
-              placeholder="輸入姓名..."
-              className="w-full h-11 px-4 rounded-xl text-sm outline-none"
-              style={{
-                background: 'var(--color-bg-card-alt)',
-                color: 'var(--color-text-primary)',
-              }}
-            />
+            {assignee && (
+              <div className="flex items-center gap-2 mb-2">
+                <span
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm"
+                  style={{ background: 'var(--color-accent)', color: '#fff' }}
+                >
+                  {assignee}
+                  <button type="button" onClick={() => setAssignee('')} className="ml-1 opacity-80 hover:opacity-100">×</button>
+                </span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowAssigneePicker(!showAssigneePicker)}
+              className="px-3 py-2 rounded-lg text-sm"
+              style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-secondary)' }}
+            >
+              {showAssigneePicker ? '收起' : assignee ? '更換人員' : '選擇員工'}
+            </button>
+            {showAssigneePicker && allStaffList.length > 0 && (
+              <div className="mt-2 p-2 rounded-lg max-h-48 overflow-y-auto" style={{ background: 'var(--color-bg-card-alt)' }}>
+                <div className="space-y-1">
+                  {allStaffList.map(staff => (
+                    <button
+                      key={staff.id}
+                      type="button"
+                      onClick={() => { setAssignee(staff.name); setShowAssigneePicker(false); }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors hover:opacity-80"
+                      style={{
+                        background: assignee === staff.name ? 'var(--color-accent)' : 'var(--color-bg-card)',
+                        color: assignee === staff.name ? '#fff' : 'var(--color-text-primary)',
+                      }}
+                    >
+                      <span>{staff.name}</span>
+                      <span className="text-xs opacity-70">{staff.store}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -227,6 +350,36 @@ function CreateTodoForm() {
             </button>
           </div>
 
+          {/* Action Links */}
+          <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--color-bg-card-alt)' }}>
+            <label className="text-xs block mb-2" style={{ color: 'var(--color-text-muted)' }}>
+              建立單據
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => router.push('/orders/create')}
+                className="px-4 py-2 rounded-xl text-sm font-medium"
+                style={{ background: 'var(--color-accent)', color: '#fff' }}
+              >
+                📦 新增客訂
+              </button>
+              <button
+                onClick={() => router.push('/repairs/create')}
+                className="px-4 py-2 rounded-xl text-sm font-medium"
+                style={{ background: 'var(--color-accent)', color: '#fff' }}
+              >
+                🔧 新增維修
+              </button>
+              <button
+                onClick={() => router.push('/remittance/create')}
+                className="px-4 py-2 rounded-xl text-sm font-medium"
+                style={{ background: 'var(--color-warning)', color: '#fff' }}
+              >
+                💰 匯款需求
+              </button>
+            </div>
+          </div>
+
           {/* Show selected related item */}
           {relatedName && (
             <div className="mt-3 p-3 rounded-xl" style={{ background: 'var(--color-bg-card-alt)' }}>
@@ -263,6 +416,64 @@ function CreateTodoForm() {
               color: 'var(--color-text-primary)',
             }}
           />
+        </div>
+
+        {/* CC Recipients */}
+        <div className="rounded-2xl p-4 mb-4" style={{ background: 'var(--color-bg-card)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              📧 CC 副本通知（選填）
+            </label>
+            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              {ccList.length > 0 ? `已選 ${ccList.length} 人` : ''}
+            </span>
+          </div>
+
+          {ccList.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {ccList.map(name => (
+                <span
+                  key={name}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs"
+                  style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
+                >
+                  {name}
+                  <button type="button" onClick={() => toggleCc(name)} className="ml-1 opacity-60 hover:opacity-100">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setShowCcPicker(!showCcPicker)}
+            className="px-3 py-2 rounded-lg text-sm"
+            style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-secondary)' }}
+          >
+            {showCcPicker ? '收起' : '選擇通知對象'}
+          </button>
+
+          {showCcPicker && staffList.length > 0 && (
+            <div className="mt-3 p-3 rounded-lg max-h-48 overflow-y-auto" style={{ background: 'var(--color-bg-card-alt)' }}>
+              <div className="space-y-2">
+                {staffList.map(staff => (
+                  <button
+                    key={staff.id}
+                    type="button"
+                    onClick={() => toggleCc(staff.name)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors"
+                    style={{
+                      background: ccList.includes(staff.name) ? 'var(--color-accent)' : 'var(--color-bg-card)',
+                      color: ccList.includes(staff.name) ? '#fff' : 'var(--color-text-primary)',
+                    }}
+                  >
+                    <span>{staff.name}</span>
+                    <span className="text-xs opacity-70">{staff.store}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Submit Button */}

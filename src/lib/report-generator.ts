@@ -30,7 +30,7 @@ export interface WeeklyReport {
   prev_week_revenue: number;
   revenue_change: number | null;
   stores: StoreReport[];
-  top_products: { product_name: string; quantity: number; revenue: number }[];
+  top_products: { product_id: string; product_name: string; quantity: number; revenue: number }[];
   new_members: number;
   active_members: number;
 }
@@ -52,7 +52,7 @@ export interface MonthlyReport {
   yoy_change: number | null;
   stores: StoreReport[];
   store_comparison: StoreRevenueComparison[];
-  top_products: { product_name: string; quantity: number; revenue: number }[];
+  top_products: { product_id: string; product_name: string; quantity: number; revenue: number }[];
   member_growth: number;
   total_members: number;
   level_distribution: { level: string; count: number }[];
@@ -108,20 +108,22 @@ async function getStoreRevenue(dateFrom: string, dateTo: string): Promise<StoreR
 }
 
 async function getTopProducts(dateFrom: string, dateTo: string, limit = 10) {
-  const result = await query<{ product_name: string; quantity: string; revenue: string }>(
-    `SELECT product_name,
+  const result = await query<{ product_id: string; product_name: string; quantity: string; revenue: string }>(
+    `SELECT product_id,
+            product_name,
             SUM(quantity) as quantity,
             SUM(total) as revenue
      FROM member_transactions
      WHERE transaction_date >= $1 AND transaction_date < $2
        AND transaction_type = '收銀'
        AND product_name IS NOT NULL AND product_name != ''
-     GROUP BY product_name
+     GROUP BY product_id, product_name
      ORDER BY revenue DESC
      LIMIT $3`,
     [dateFrom, dateTo, limit]
   );
   return result.rows.map(r => ({
+    product_id: r.product_id,
     product_name: r.product_name,
     quantity: Number(r.quantity),
     revenue: Number(r.revenue),

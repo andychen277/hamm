@@ -30,8 +30,7 @@ export async function GET(req: NextRequest) {
       newMembersThisMonth,
       newMembersPrevMonth,
       lineBindingRate,
-      avgOrderValue,
-      prevAvgOrderValue,
+      pendingBindings,
     ] = await Promise.all([
       // Today's revenue
       query<{ total: string }>(
@@ -89,25 +88,10 @@ export async function GET(req: NextRequest) {
                 COUNT(line_user_id) FILTER (WHERE line_user_id IS NOT NULL AND line_user_id != '') as bound
          FROM unified_members`
       ),
-      // Average order value (this month)
-      query<{ avg: string }>(
-        `SELECT COALESCE(AVG(order_total), 0) as avg FROM (
-           SELECT order_number, SUM(total) as order_total
-           FROM member_transactions
-           WHERE transaction_date >= $1 AND transaction_type = '收銀'
-           GROUP BY order_number
-         ) sub`,
-        [monthStart]
-      ),
-      // Average order value (previous month)
-      query<{ avg: string }>(
-        `SELECT COALESCE(AVG(order_total), 0) as avg FROM (
-           SELECT order_number, SUM(total) as order_total
-           FROM member_transactions
-           WHERE transaction_date >= $1 AND transaction_date < $2 AND transaction_type = '收銀'
-           GROUP BY order_number
-         ) sub`,
-        [prevMonthStart, prevMonthEnd]
+      // Pending bindings count (waiting for staff verification)
+      query<{ count: string }>(
+        `SELECT COUNT(*) as count FROM line_bindings
+         WHERE bind_status = 'pending' AND code_expires_at > NOW()`
       ),
     ]);
 
@@ -133,8 +117,7 @@ export async function GET(req: NextRequest) {
     const prevMonthRev = Number(prevMonthRevenue.rows[0].total);
     const total = Number(totalMembers.rows[0].count);
     const bound = Number(lineBindingRate.rows[0].bound);
-    const avgOV = Number(avgOrderValue.rows[0].avg);
-    const prevAvgOV = Number(prevAvgOrderValue.rows[0].avg);
+    const pendingCount = Number(pendingBindings.rows[0].count);
 
     const pctChange = (current: number, previous: number) => {
       if (previous === 0) return null;
@@ -175,11 +158,11 @@ export async function GET(req: NextRequest) {
           label: 'LINE 綁定率',
           compare: `${bound} / ${total}`,
         },
-        avg_order_value: {
-          value: avgOV,
-          change: pctChange(avgOV, prevAvgOV),
-          label: '平均客單價',
-          compare: 'vs 上月',
+        pending_bindings: {
+          value: pendingCount,
+          change: null,
+          label: '待認證',
+          compare: '會員綁定',
         },
       },
     });
