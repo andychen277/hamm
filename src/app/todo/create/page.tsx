@@ -39,47 +39,30 @@ function CreateTodoForm() {
   const [showCreatorPicker, setShowCreatorPicker] = useState(false);
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
 
-  // Get user info from token and fetch staff list
+  // Get user info and fetch staff list
   useEffect(() => {
-    // Parse token to get current user
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('hamm_token='))
-      ?.split('=')[1];
-
-    let userName = '';
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.name) {
-          userName = payload.name;
-          setCreator(userName); // Default to current user
+    Promise.all([
+      fetch('/api/auth/me').then(r => r.json()).catch(() => null),
+      fetch('/api/staff').then(r => r.json()).catch(() => null),
+    ]).then(([meJson, staffJson]) => {
+      let userName = '';
+      if (meJson?.success) {
+        userName = meJson.user.name || '';
+        if (userName) setCreator(userName);
+        if (meJson.user.store_access?.[0] && meJson.user.store_access[0] !== 'all') {
+          setStore(meJson.user.store_access[0]);
         }
-        if (payload.store) {
-          setStore(payload.store);
-        }
-      } catch {
-        // ignore
       }
-    }
-
-    // Fetch staff list
-    fetch('/api/staff')
-      .then(res => res.json())
-      .then(json => {
-        if (json.success) {
-          // Sort: current user first, then by store and name
-          const sorted = [...json.data].sort((a: StaffMember, b: StaffMember) => {
-            if (a.name === userName) return -1;
-            if (b.name === userName) return 1;
-            return (a.store || '').localeCompare(b.store || '') || a.name.localeCompare(b.name);
-          });
-          setAllStaffList(sorted);
-          // Only staff with Telegram for CC
-          setStaffList(sorted.filter((s: StaffMember) => s.telegram_chat_id));
-        }
-      })
-      .catch(() => {});
+      if (staffJson?.success) {
+        const sorted = [...staffJson.data].sort((a: StaffMember, b: StaffMember) => {
+          if (a.name === userName) return -1;
+          if (b.name === userName) return 1;
+          return (a.store || '').localeCompare(b.store || '') || a.name.localeCompare(b.name);
+        });
+        setAllStaffList(sorted);
+        setStaffList(sorted.filter((s: StaffMember) => s.telegram_chat_id));
+      }
+    });
   }, []);
 
   const toggleCc = (name: string) => {

@@ -9,6 +9,7 @@ const ERP_PASSWORD = process.env.ERP_PASSWORD || '';
 
 let cookies = '';
 let lastLoginTime = 0;
+let loginPromise: Promise<boolean> | null = null;
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
 // Store codes mapping
@@ -71,8 +72,17 @@ function isSessionValid(): boolean {
 }
 
 async function ensureLogin(): Promise<void> {
-  if (!isSessionValid()) {
-    await login();
+  if (isSessionValid()) return;
+  // Use a mutex to prevent concurrent login attempts
+  if (loginPromise) {
+    await loginPromise;
+    return;
+  }
+  loginPromise = login();
+  try {
+    await loginPromise;
+  } finally {
+    loginPromise = null;
   }
 }
 

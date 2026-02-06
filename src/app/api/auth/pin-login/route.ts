@@ -16,7 +16,13 @@ export async function POST(req: NextRequest) {
   }
 
   const { pin } = await req.json();
-  const correctPin = process.env.ADMIN_PIN || '277277';
+  const correctPin = process.env.ADMIN_PIN;
+  if (!correctPin) {
+    return NextResponse.json(
+      { success: false, error: 'PIN 登入未設定' },
+      { status: 500 }
+    );
+  }
 
   if (pin !== correctPin) {
     recordPinFailure(ip);

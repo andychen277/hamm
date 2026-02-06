@@ -18,7 +18,8 @@ export function checkPinRateLimit(ip: string): { allowed: boolean; remainingAtte
     }
   }
 
-  return { allowed: true, remainingAttempts: MAX_ATTEMPTS - (record?.count || 0) };
+  const current = attempts.get(ip);
+  return { allowed: true, remainingAttempts: MAX_ATTEMPTS - (current?.count || 0) };
 }
 
 export function recordPinFailure(ip: string): void {

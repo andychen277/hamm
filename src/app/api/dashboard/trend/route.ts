@@ -4,57 +4,28 @@ import { query } from '@/lib/db';
 export async function GET(req: NextRequest) {
   const range = req.nextUrl.searchParams.get('range') || '6m';
 
-  let interval: string;
-  let groupBy: string;
-  let dateFormat: string;
+  // Whitelist-based config to prevent SQL injection
+  const RANGE_CONFIG: Record<string, { intervalDays: number; dateFormat: string }> = {
+    '7d':  { intervalDays: 7,   dateFormat: 'YYYY-MM-DD' },
+    '30d': { intervalDays: 30,  dateFormat: 'YYYY-MM-DD' },
+    '6m':  { intervalDays: 180, dateFormat: 'YYYY-MM' },
+    '1y':  { intervalDays: 365, dateFormat: 'YYYY-MM' },
+  };
 
-  switch (range) {
-    case '7d':
-      interval = '7 days';
-      groupBy = 'day';
-      dateFormat = 'YYYY-MM-DD';
-      break;
-    case '30d':
-      interval = '30 days';
-      groupBy = 'day';
-      dateFormat = 'YYYY-MM-DD';
-      break;
-    case '6m':
-      interval = '6 months';
-      groupBy = 'month';
-      dateFormat = 'YYYY-MM';
-      break;
-    case '1y':
-      interval = '12 months';
-      groupBy = 'month';
-      dateFormat = 'YYYY-MM';
-      break;
-    default:
-      interval = '6 months';
-      groupBy = 'month';
-      dateFormat = 'YYYY-MM';
-  }
+  const config = RANGE_CONFIG[range] || RANGE_CONFIG['6m'];
 
   try {
-    const sql = groupBy === 'day'
-      ? `SELECT
-           TO_CHAR(transaction_date, '${dateFormat}') as period,
-           SUM(total) as revenue
-         FROM member_transactions
-         WHERE transaction_date >= CURRENT_DATE - INTERVAL '${interval}'
-           AND transaction_type = '收銀'
-         GROUP BY period
-         ORDER BY period`
-      : `SELECT
-           TO_CHAR(transaction_date, '${dateFormat}') as period,
-           SUM(total) as revenue
-         FROM member_transactions
-         WHERE transaction_date >= CURRENT_DATE - INTERVAL '${interval}'
-           AND transaction_type = '收銀'
-         GROUP BY period
-         ORDER BY period`;
-
-    const result = await query<{ period: string; revenue: string }>(sql);
+    const result = await query<{ period: string; revenue: string }>(
+      `SELECT
+         TO_CHAR(transaction_date, $1) as period,
+         SUM(total) as revenue
+       FROM member_transactions
+       WHERE transaction_date >= CURRENT_DATE - $2::int * INTERVAL '1 day'
+         AND transaction_type = '收銀'
+       GROUP BY period
+       ORDER BY period`,
+      [config.dateFormat, config.intervalDays]
+    );
 
     const data = result.rows.map(row => ({
       period: row.period,

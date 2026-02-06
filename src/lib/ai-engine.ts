@@ -55,6 +55,9 @@ async function chatCompletion(messages: { role: string; content: string }[]): Pr
   }
 
   const data = await res.json();
+  if (!data.choices?.length || !data.choices[0].message?.content) {
+    throw new Error('LLM returned empty response');
+  }
   return data.choices[0].message.content.trim();
 }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { sendTelegramMessage } from '@/lib/telegram';
+import { verifyToken } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,12 +25,8 @@ export async function POST(req: NextRequest) {
     let paidBy = 'Hamm';
     const token = req.cookies.get('hamm_token')?.value;
     if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.name) paidBy = payload.name;
-      } catch {
-        // ignore
-      }
+      const payload = verifyToken(token);
+      if (payload?.name) paidBy = payload.name;
     }
 
     // Note: We cannot update ERP directly from Hamm (ERP is on internal network)

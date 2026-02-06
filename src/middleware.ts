@@ -28,7 +28,7 @@ export async function middleware(req: NextRequest) {
   }
 
   try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-dev-secret');
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     await jwtVerify(token, secret);
     return NextResponse.next();
   } catch {

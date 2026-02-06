@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 
 export async function GET() {
   const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
@@ -11,7 +12,7 @@ export async function GET() {
     );
   }
 
-  const state = Math.random().toString(36).substring(2, 15);
+  const state = randomUUID();
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: channelId,
