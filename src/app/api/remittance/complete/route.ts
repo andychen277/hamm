@@ -48,13 +48,13 @@ ${paidNote ? `\n💬 備註：${paidNote}` : ''}
     // 1. Notify the creator
     if (creator) {
       const staffResult = await query(
-        `SELECT telegram_chat_id FROM staff WHERE name = $1 AND telegram_chat_id IS NOT NULL`,
+        `SELECT telegram_user_id FROM staff WHERE name = $1 AND telegram_user_id IS NOT NULL`,
         [creator]
       );
 
-      if (staffResult.rows.length > 0 && staffResult.rows[0].telegram_chat_id) {
+      if (staffResult.rows.length > 0 && staffResult.rows[0].telegram_user_id) {
         const result = await sendTelegramMessage({
-          chatId: staffResult.rows[0].telegram_chat_id,
+          chatId: staffResult.rows[0].telegram_user_id,
           text: message,
         });
         notificationResults.push({
@@ -83,11 +83,11 @@ ${paidNote ? `\n💬 備註：${paidNote}` : ''}
       if (ccName === creator) continue;
 
       const staffResult = await query(
-        `SELECT telegram_chat_id FROM staff WHERE name = $1 AND telegram_chat_id IS NOT NULL`,
+        `SELECT telegram_user_id FROM staff WHERE name = $1 AND telegram_user_id IS NOT NULL`,
         [ccName]
       );
 
-      if (staffResult.rows.length > 0 && staffResult.rows[0].telegram_chat_id) {
+      if (staffResult.rows.length > 0 && staffResult.rows[0].telegram_user_id) {
         const ccMessage = `📧 <b>匯款完成通知（副本）</b>
 
 📋 單號：<code>${remittanceNo}</code>
@@ -99,7 +99,7 @@ ${paidNote ? `\n💬 備註：${paidNote}` : ''}
 ⏰ ${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`;
 
         const result = await sendTelegramMessage({
-          chatId: staffResult.rows[0].telegram_chat_id,
+          chatId: staffResult.rows[0].telegram_user_id,
           text: ccMessage,
         });
         notificationResults.push({

@@ -11,7 +11,6 @@ export async function GET(req: NextRequest) {
     let sql = `
       SELECT id, name, store, role,
              telegram_user_id,
-             telegram_user_id AS telegram_chat_id,
              telegram_user_id IS NOT NULL as telegram_bound,
              telegram_username,
              is_active, created_at

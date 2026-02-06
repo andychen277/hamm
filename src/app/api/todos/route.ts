@@ -72,13 +72,13 @@ export async function POST(req: NextRequest) {
     if (assignee) {
       try {
         const staffResult = await query(
-          `SELECT telegram_chat_id FROM staff WHERE name = $1 AND is_active = true`,
+          `SELECT telegram_user_id FROM staff WHERE name = $1 AND is_active = true`,
           [assignee]
         );
 
-        if (staffResult.rows.length > 0 && staffResult.rows[0].telegram_chat_id) {
+        if (staffResult.rows.length > 0 && staffResult.rows[0].telegram_user_id) {
           await sendTaskNotification({
-            chatId: staffResult.rows[0].telegram_chat_id,
+            chatId: staffResult.rows[0].telegram_user_id,
             taskType: task_type || 'general',
             creator,
             store,
@@ -103,13 +103,13 @@ export async function POST(req: NextRequest) {
 
         try {
           const staffResult = await query(
-            `SELECT telegram_chat_id FROM staff WHERE name = $1 AND telegram_chat_id IS NOT NULL`,
+            `SELECT telegram_user_id FROM staff WHERE name = $1 AND telegram_user_id IS NOT NULL`,
             [ccName]
           );
 
-          if (staffResult.rows.length > 0 && staffResult.rows[0].telegram_chat_id) {
+          if (staffResult.rows.length > 0 && staffResult.rows[0].telegram_user_id) {
             await sendTaskNotification({
-              chatId: staffResult.rows[0].telegram_chat_id,
+              chatId: staffResult.rows[0].telegram_user_id,
               taskType: task_type || 'general',
               creator,
               store,

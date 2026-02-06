@@ -114,13 +114,13 @@ export async function POST(req: NextRequest) {
       for (const staffNameCc of ccList) {
         try {
           const staffResult = await query(
-            `SELECT telegram_chat_id FROM staff WHERE name = $1 AND telegram_chat_id IS NOT NULL`,
+            `SELECT telegram_user_id FROM staff WHERE name = $1 AND telegram_user_id IS NOT NULL`,
             [staffNameCc]
           );
 
-          if (staffResult.rows.length > 0 && staffResult.rows[0].telegram_chat_id) {
+          if (staffResult.rows.length > 0 && staffResult.rows[0].telegram_user_id) {
             await sendTelegramMessage({
-              chatId: staffResult.rows[0].telegram_chat_id,
+              chatId: staffResult.rows[0].telegram_user_id,
               text: message,
             });
             notificationsSent++;

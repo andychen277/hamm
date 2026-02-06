@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       // 更新綁定資訊
       await query(`
         UPDATE staff
-        SET telegram_chat_id = $1,
+        SET telegram_user_id = $1,
             telegram_username = $2,
             bind_code = NULL,
             bind_code_expires = NULL,
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     if (text === '/status') {
       const result = await query(`
         SELECT name, store, role FROM staff
-        WHERE telegram_chat_id = $1 AND is_active = true
+        WHERE telegram_user_id = $1 AND is_active = true
       `, [chatId]);
 
       if (result.rows.length === 0) {

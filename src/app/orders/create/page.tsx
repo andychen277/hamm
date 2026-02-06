@@ -23,7 +23,6 @@ interface StaffMember {
   id: number;
   name: string;
   store: string;
-  telegram_chat_id: string | null;
   telegram_user_id: string | null;
 }
 
@@ -112,7 +111,7 @@ export default function CreateOrderPage() {
   }, []);
 
   // Staff with Telegram for CC notifications
-  const ccAvailableStaff = staffList.filter((s: StaffMember) => s.telegram_chat_id);
+  const ccAvailableStaff = staffList.filter((s: StaffMember) => s.telegram_user_id);
 
   const toggleCc = (name: string) => {
     setCcList(prev =>

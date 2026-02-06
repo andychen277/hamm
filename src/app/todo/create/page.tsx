@@ -10,7 +10,7 @@ interface StaffMember {
   id: number;
   name: string;
   store: string;
-  telegram_chat_id: string | null;
+  telegram_user_id: string | null;
 }
 
 function CreateTodoForm() {
@@ -60,7 +60,7 @@ function CreateTodoForm() {
           return (a.store || '').localeCompare(b.store || '') || a.name.localeCompare(b.name);
         });
         setAllStaffList(sorted);
-        setStaffList(sorted.filter((s: StaffMember) => s.telegram_chat_id));
+        setStaffList(sorted.filter((s: StaffMember) => s.telegram_user_id));
       }
     });
   }, []);

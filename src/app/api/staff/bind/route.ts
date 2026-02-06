@@ -74,7 +74,7 @@ export async function PUT(req: NextRequest) {
     // 更新 Telegram 綁定資訊
     await query(`
       UPDATE staff
-      SET telegram_chat_id = $1,
+      SET telegram_user_id = $1,
           telegram_username = $2,
           bind_code = NULL,
           bind_code_expires = NULL,
