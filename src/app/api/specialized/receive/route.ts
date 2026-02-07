@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { createExpectedArrival } from '@/lib/erp';
 
 const STORE_CODES: Record<string, string> = {
   '台南': '001', '崇明': '008', '高雄': '002',
@@ -129,6 +130,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Write to ERP: 預計到貨建檔
+    let erpResult: { success: boolean; orderNumber: string; error?: string } | null = null;
+    try {
+      const today = new Date();
+      const tw = new Date(today.getTime() + 8 * 60 * 60 * 1000);
+      const arrivalDate = `${tw.getFullYear()}/${String(tw.getMonth() + 1).padStart(2, '0')}/${String(tw.getDate()).padStart(2, '0')}`;
+
+      const itemLines = receiveItems.map(i =>
+        `${i.product_name} x${i.quantity} $${i.price || 0}`
+      ).join('\n');
+      const memo = `PO: ${shipment.cust_po_number || shipment.shipment_id}\n${itemLines}`;
+
+      erpResult = await createExpectedArrival({
+        store,
+        creator: session?.name || 'Hamm',
+        supplierName: 'Specialized',
+        arrivalDate,
+        memo,
+      }, storeCode);
+
+      console.log(`[Specialized] ERP write result:`, erpResult);
+    } catch (erpErr) {
+      console.error('[Specialized] ERP write failed (non-blocking):', erpErr);
+      erpResult = { success: false, orderNumber: '', error: String(erpErr) };
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -136,6 +163,7 @@ export async function POST(req: NextRequest) {
         order_no: orderNo,
         total_items: totalItems,
         total_qty: totalQty,
+        erp: erpResult,
       },
     });
   } catch (error) {

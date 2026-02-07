@@ -189,7 +189,10 @@ export default function SpecializedDashboard() {
       const json = await res.json();
       if (json.success) {
         setReceiveOrderId(json.data.receiving_order_id);
-        setConfirmMsg(`收貨成功！單號: ${json.data.order_no} (${json.data.total_items} 品項 / ${json.data.total_qty} 件)`);
+        const erpMsg = json.data.erp?.success
+          ? ` | ERP 入庫: ${json.data.erp.orderNumber}`
+          : json.data.erp?.error ? ` | ERP: ${json.data.erp.error}` : '';
+        setConfirmMsg(`收貨成功！單號: ${json.data.order_no} (${json.data.total_items} 品項 / ${json.data.total_qty} 件)${erpMsg}`);
         // Remove from in-transit list
         if (data) {
           setData({

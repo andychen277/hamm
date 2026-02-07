@@ -456,6 +456,72 @@ function getTodayDate(): string {
 }
 
 // ============================================================
+// 預計到貨建檔 (Expected Arrival → ERP Stock Entry)
+// ============================================================
+
+export interface ExpectedArrivalData {
+  store: string;           // 到貨門市 (e.g. '台南')
+  creator: string;         // 建檔人員
+  supplierName: string;    // 廠商名稱 (e.g. 'Specialized')
+  arrivalDate: string;     // 到貨日期 (YYYY/MM/DD or YYYY-MM-DD)
+  memo: string;            // 商品資訊 (items description)
+}
+
+/**
+ * 建立預計到貨 → 寫入 ERP (expectedprod_finish.php)
+ */
+export async function createExpectedArrival(
+  data: ExpectedArrivalData,
+  storeCode: string
+): Promise<{ success: boolean; orderNumber: string; error?: string }> {
+  await ensureLogin();
+
+  const fnoa = generateOrderNumber(storeCode);
+  const arrivalDate = data.arrivalDate.replace(/-/g, '/');
+
+  const payload = {
+    ston: storeCode,
+    opnm: data.creator,
+    scnm: data.supplierName,
+    scno: '',
+    ardate: arrivalDate,
+    memo1: data.memo,
+    fnoa: fnoa,
+  };
+
+  console.log(`[ERP] 建立預計到貨: ${fnoa}, 廠商: ${data.supplierName}, 門市: ${data.store}`);
+
+  try {
+    const response = await fetch(`${ERP_BASE_URL}/expectedprod_finish.php`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': cookies,
+      },
+      body: encodeFormData(payload),
+    });
+
+    const responseText = await response.text();
+    console.log(`[ERP] 預計到貨寫入回應: HTTP ${response.status}`);
+
+    if (responseText.includes('login') || responseText.includes('登入') || response.status === 401) {
+      cookies = '';
+      lastLoginTime = 0;
+      return { success: false, orderNumber: '', error: 'ERP Session 過期，請重試' };
+    }
+
+    if (responseText.includes('錯誤') || responseText.includes('失敗')) {
+      return { success: false, orderNumber: fnoa, error: '寫入 ERP 回應異常' };
+    }
+
+    return { success: true, orderNumber: fnoa };
+  } catch (error) {
+    console.error('[ERP] 預計到貨寫入失敗:', error);
+    return { success: false, orderNumber: '', error: String(error) };
+  }
+}
+
+// ============================================================
 // 匯款需求
 // ============================================================
 
