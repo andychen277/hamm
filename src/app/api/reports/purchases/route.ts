@@ -39,8 +39,8 @@ export async function GET(req: NextRequest) {
         TO_CHAR(period_start, 'YYYY-MM-DD') as period_start,
         TO_CHAR(period_end, 'YYYY-MM-DD') as period_end
       FROM purchase_summary
-      WHERE period_start >= $1
-        AND period_end <= $2
+      WHERE period_start <= $2
+        AND period_end >= $1
     `;
 
     const params: (string | number)[] = [start, end];

@@ -172,15 +172,25 @@ export default function OrderDetailPage() {
       const json = await res.json();
 
       if (json.success) {
-        const newAmount = Number(editAmount) || 0;
-        const newDeposit = Number(editDeposit) || 0;
-        setData(prev => prev ? {
-          ...prev,
-          product_info: editProduct,
-          total_amount: newAmount,
-          deposit_paid: newDeposit,
-          balance: newAmount - newDeposit,
-        } : null);
+        // Re-fetch from server to verify persistence
+        try {
+          const verifyRes = await fetch(`/api/reports/orders/${encodeURIComponent(orderId)}`);
+          const verifyJson = await verifyRes.json();
+          if (verifyJson.success) {
+            setData(verifyJson.data);
+          }
+        } catch {
+          // Fallback to local state update
+          const newAmount = Number(editAmount) || 0;
+          const newDeposit = Number(editDeposit) || 0;
+          setData(prev => prev ? {
+            ...prev,
+            product_info: editProduct,
+            total_amount: newAmount,
+            deposit_paid: newDeposit,
+            balance: newAmount - newDeposit,
+          } : null);
+        }
         setEditing(false);
         setSaveResult({ success: true, message: '已儲存修改' });
       } else {

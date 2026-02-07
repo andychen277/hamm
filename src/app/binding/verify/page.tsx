@@ -35,6 +35,7 @@ export default function BindingVerifyPage() {
   const [bindings, setBindings] = useState<BindingData[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [verifying, setVerifying] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{ lineUserId: string; memberName: string; phone: string } | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [staffName, setStaffName] = useState<string>('');
@@ -85,11 +86,8 @@ export default function BindingVerifyPage() {
   }, []);
 
   const handleVerify = async (lineUserId: string, memberName: string, phone: string) => {
-    if (!confirm(`確定要完成 ${memberName} 的會員綁定？`)) {
-      return;
-    }
-
     setVerifying(lineUserId);
+    setConfirmTarget(null);
     setError(null);
     setSuccess(null);
 
@@ -263,15 +261,35 @@ export default function BindingVerifyPage() {
                     </div>
                   </div>
 
-                  {/* Verify Button */}
-                  <button
-                    onClick={() => handleVerify(binding.lineUserId, binding.memberName, binding.phone)}
-                    disabled={verifying === binding.lineUserId}
-                    className="px-5 py-3 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-50"
-                    style={{ background: 'var(--color-accent)', color: '#fff' }}
-                  >
-                    {verifying === binding.lineUserId ? '...' : '驗證'}
-                  </button>
+                  {/* Verify Button — two-step: tap to confirm, tap again to verify */}
+                  {confirmTarget?.lineUserId === binding.lineUserId ? (
+                    <div className="flex flex-col gap-1.5">
+                      <button
+                        onClick={() => handleVerify(binding.lineUserId, binding.memberName, binding.phone)}
+                        disabled={verifying === binding.lineUserId}
+                        className="px-5 py-3 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-50"
+                        style={{ background: 'var(--color-positive)', color: '#fff' }}
+                      >
+                        {verifying === binding.lineUserId ? '驗證中...' : '確定'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmTarget(null)}
+                        className="px-3 py-1.5 rounded-lg text-xs"
+                        style={{ color: 'var(--color-text-muted)' }}
+                      >
+                        取消
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmTarget({ lineUserId: binding.lineUserId, memberName: binding.memberName, phone: binding.phone })}
+                      disabled={verifying === binding.lineUserId}
+                      className="px-5 py-3 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-50"
+                      style={{ background: 'var(--color-accent)', color: '#fff' }}
+                    >
+                      驗證
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

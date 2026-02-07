@@ -57,7 +57,7 @@ export async function PATCH(
     sets.push(`updated_at = NOW()`);
 
     values.push(orderId);
-    const sql = `UPDATE customer_orders SET ${sets.join(', ')} WHERE order_id = $${i} RETURNING order_id`;
+    const sql = `UPDATE customer_orders SET ${sets.join(', ')} WHERE order_id = $${i} RETURNING order_id, total_amount, deposit_paid, balance, product_info`;
 
     const result = await query(sql, values);
 
@@ -65,7 +65,17 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: '找不到客訂單' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: { order_id: orderId } });
+    const row = result.rows[0];
+    return NextResponse.json({
+      success: true,
+      data: {
+        order_id: row.order_id,
+        total_amount: Number(row.total_amount),
+        deposit_paid: Number(row.deposit_paid),
+        balance: Number(row.balance),
+        product_info: row.product_info,
+      },
+    });
   } catch (error) {
     console.error('Order update error:', error);
     return NextResponse.json(
