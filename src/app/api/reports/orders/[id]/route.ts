@@ -47,10 +47,10 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: '沒有要更新的欄位' }, { status: 400 });
     }
 
-    // Auto-recalculate balance (cast to numeric to avoid "operator is not unique" error)
+    // Auto-recalculate balance (cast BOTH sides to numeric)
     if (amtIdx || depIdx) {
-      const amtExpr = amtIdx ? `$${amtIdx}::numeric` : 'total_amount';
-      const depExpr = depIdx ? `$${depIdx}::numeric` : 'deposit_paid';
+      const amtExpr = amtIdx ? `$${amtIdx}::numeric` : 'total_amount::numeric';
+      const depExpr = depIdx ? `$${depIdx}::numeric` : 'deposit_paid::numeric';
       sets.push(`balance = ${amtExpr} - ${depExpr}`);
     }
 
