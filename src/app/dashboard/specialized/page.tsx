@@ -77,6 +77,10 @@ export default function SpecializedDashboard() {
   const [confirming, setConfirming] = useState(false);
   const [confirmMsg, setConfirmMsg] = useState('');
 
+  // Sync state
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+
   useEffect(() => {
     fetch('/api/specialized/in-transit')
       .then(r => r.json())
@@ -152,6 +156,32 @@ export default function SpecializedDashboard() {
     }
   };
 
+  // B2B Sync handler
+  const handleSync = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch('/api/specialized/b2b-sync', { method: 'POST' });
+      const json = await res.json();
+      if (json.success) {
+        const d = json.data;
+        setSyncResult(`同步完成: ${d.shipments} 出貨 + ${d.orders} 訂單 (${(d.duration_ms / 1000).toFixed(1)}s)`);
+        // Reload data
+        const dataRes = await fetch('/api/specialized/in-transit');
+        const dataJson = await dataRes.json();
+        if (dataJson.success) setData(dataJson.data);
+      } else {
+        setSyncResult(`同步失敗: ${json.error}`);
+      }
+    } catch {
+      setSyncResult('網路錯誤，請重試');
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncResult(null), 5000);
+    }
+  };
+
   // Aggregate inventory by product
   const inventoryByProduct = data?.inventory.reduce((acc, item) => {
     if (!acc[item.product_id]) {
@@ -192,6 +222,18 @@ export default function SpecializedDashboard() {
             </span>
           )}
           <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="h-8 px-3 rounded-lg flex items-center justify-center text-[11px] font-medium"
+            style={{
+              background: syncing ? 'var(--color-bg-card-alt)' : 'var(--color-accent)',
+              color: '#fff',
+              opacity: syncing ? 0.7 : 1,
+            }}
+          >
+            {syncing ? 'Syncing...' : 'Sync B2B'}
+          </button>
+          <button
             onClick={() => setShowSearch(!showSearch)}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
             style={{
@@ -203,6 +245,17 @@ export default function SpecializedDashboard() {
           </button>
         </div>
       </div>
+
+      {/* Sync Result Banner */}
+      {syncResult && (
+        <div className="mx-5 mb-2 px-3 py-2 rounded-xl text-xs"
+          style={{
+            background: syncResult.startsWith('同步完成') ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+            color: syncResult.startsWith('同步完成') ? 'rgb(34,197,94)' : 'rgb(239,68,68)',
+          }}>
+          {syncResult}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-60">
