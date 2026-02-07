@@ -26,9 +26,9 @@ export async function GET(req: NextRequest) {
     // 1. First try inventory (has vendor info)
     if (q) {
       const inventoryQuery = `
-        SELECT DISTINCT product_id, product_name, vendor_code, vendor_name, price, cost
+        SELECT DISTINCT product_id, product_name, vendor_code, price
         FROM inventory
-        WHERE product_name ILIKE $1 OR product_id ILIKE $1 OR vendor_name ILIKE $1
+        WHERE product_name ILIKE $1 OR product_id ILIKE $1 OR vendor_code ILIKE $1
         ${vendor ? `AND vendor_code ILIKE $2` : ''}
         ORDER BY product_name
         LIMIT 100
@@ -40,9 +40,9 @@ export async function GET(req: NextRequest) {
         product_id: p.product_id,
         product_name: p.product_name,
         vendor_code: p.vendor_code || '',
-        vendor_name: p.vendor_name || '',
+        vendor_name: '',
         price: Number(p.price) || 0,
-        cost: Number(p.cost) || 0,
+        cost: 0,
       }));
       productIds = products.map(p => p.product_id);
     }
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     // 3. If vendor-only search
     if (productIds.length === 0 && vendor && !q) {
       const vendorQuery = `
-        SELECT DISTINCT product_id, product_name, vendor_code, vendor_name, price, cost
+        SELECT DISTINCT product_id, product_name, vendor_code, price
         FROM inventory
         WHERE vendor_code ILIKE $1
         ORDER BY product_name
@@ -85,9 +85,9 @@ export async function GET(req: NextRequest) {
         product_id: p.product_id,
         product_name: p.product_name,
         vendor_code: p.vendor_code || '',
-        vendor_name: p.vendor_name || '',
+        vendor_name: '',
         price: Number(p.price) || 0,
-        cost: Number(p.cost) || 0,
+        cost: 0,
       }));
       productIds = products.map(p => p.product_id);
     }
@@ -161,7 +161,6 @@ export async function GET(req: NextRequest) {
       SELECT
         store,
         SUM(quantity)::int AS total_qty,
-        SUM(quantity * cost)::numeric AS total_cost,
         SUM(quantity * price)::numeric AS total_value
       FROM inventory
       WHERE product_id = ANY($1)
@@ -209,7 +208,6 @@ export async function GET(req: NextRequest) {
 
     // Calculate totals
     const totalInventoryQty = inventoryResult.rows.reduce((sum, r) => sum + Number(r.total_qty), 0);
-    const totalInventoryCost = inventoryResult.rows.reduce((sum, r) => sum + Number(r.total_cost), 0);
     const totalInventoryValue = inventoryResult.rows.reduce((sum, r) => sum + Number(r.total_value), 0);
 
     return NextResponse.json({
@@ -228,12 +226,12 @@ export async function GET(req: NextRequest) {
         current_inventory: inventoryResult.rows.map(row => ({
           store: row.store,
           qty: Number(row.total_qty),
-          cost: Number(row.total_cost),
+          cost: 0,
           value: Number(row.total_value),
         })),
         inventory_totals: {
           qty: totalInventoryQty,
-          cost: totalInventoryCost,
+          cost: 0,
           value: totalInventoryValue,
         },
       },
