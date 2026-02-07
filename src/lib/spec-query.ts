@@ -129,7 +129,7 @@ export async function getInventoryWithTransit() {
 
   // In-transit (shipped but not received)
   const inTransitResult = await query(
-    `SELECT s.shipment_id, s.cust_po_number, s.ship_to,
+    `SELECT s.id, s.shipment_id, s.cust_po_number, s.ship_to,
             TO_CHAR(s.date_shipped, 'YYYY-MM-DD') as date_shipped,
             s.shipped_total, s.shipped_qty
      FROM spec_shipments s
@@ -144,7 +144,7 @@ export async function getInventoryWithTransit() {
 
   // Pending orders (not yet shipped)
   const pendingResult = await query(
-    `SELECT order_id, order_number, order_status, total_amount,
+    `SELECT id, order_id, order_number, order_status, total_amount,
             TO_CHAR(submitted_date, 'YYYY-MM-DD') as submitted_date
      FROM spec_pending_orders
      WHERE order_status NOT IN ('Cancelled', 'Shipped')
