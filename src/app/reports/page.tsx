@@ -141,143 +141,29 @@ export default function ReportsPage() {
         </Link>
       </div>
 
-      {/* Quick Links */}
-      <div className="px-5 mb-4">
-        <div className="grid grid-cols-3 gap-2">
-          <Link
-            href="/reports/products"
-            className="rounded-xl p-3 flex items-center gap-2"
-            style={{ background: 'var(--color-bg-card)' }}
-          >
-            <span className="text-lg">🛒</span>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>商品銷售</span>
-          </Link>
-          <Link
-            href="/reports/history"
-            className="rounded-xl p-3 flex items-center gap-2"
-            style={{ background: 'var(--color-bg-card)' }}
-          >
-            <span className="text-lg">📈</span>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>歷史銷售</span>
-          </Link>
-          <Link
-            href="/reports/members"
-            className="rounded-xl p-3 flex items-center gap-2"
-            style={{ background: 'var(--color-bg-card)' }}
-          >
-            <span className="text-lg">👥</span>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>會員查詢</span>
-          </Link>
-          <Link
-            href="/reports/inventory"
-            className="rounded-xl p-3 flex items-center gap-2"
-            style={{ background: 'var(--color-bg-card)' }}
-          >
-            <span className="text-lg">📦</span>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>庫存查詢</span>
-          </Link>
-          <Link
-            href="/reports/purchases"
-            className="rounded-xl p-3 flex items-center gap-2"
-            style={{ background: 'var(--color-bg-card)' }}
-          >
-            <span className="text-lg">📥</span>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>進貨查詢</span>
-          </Link>
-          <Link
-            href="/reports/repairs"
-            className="rounded-xl p-3 flex items-center gap-2"
-            style={{ background: 'var(--color-bg-card)' }}
-          >
-            <span className="text-lg">🔧</span>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>維修查詢</span>
-          </Link>
-          <Link
-            href="/reports/orders"
-            className="rounded-xl p-3 flex items-center gap-2"
-            style={{ background: 'var(--color-bg-card)' }}
-          >
-            <span className="text-lg">📋</span>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>客訂查詢</span>
-          </Link>
-          <Link
-            href="/remittance"
-            className="rounded-xl p-3 flex items-center gap-2"
-            style={{ background: 'var(--color-bg-card)' }}
-          >
-            <span className="text-lg">💰</span>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>匯款查詢</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* Alien - Quick Actions */}
-      <div className="px-5 mb-4">
-        <p className="text-[11px] mb-2" style={{ color: 'var(--color-text-muted)' }}>&#128125; Alien 掃描工具</p>
-        <div className="grid grid-cols-3 gap-2">
-          <Link
-            href="/receiving"
-            className="rounded-xl p-3 flex flex-col items-center gap-1.5"
-            style={{ background: 'var(--color-accent)', color: '#fff' }}
-          >
-            <span className="text-lg">&#128230;</span>
-            <span className="text-xs font-semibold">掃描進貨</span>
-          </Link>
-          <Link
-            href="/transfer"
-            className="rounded-xl p-3 flex flex-col items-center gap-1.5"
-            style={{ background: 'var(--color-accent)', color: '#fff' }}
-          >
-            <span className="text-lg">&#128666;</span>
-            <span className="text-xs font-semibold">掃描調貨</span>
-          </Link>
-          <Link
-            href="/scan"
-            className="rounded-xl p-3 flex flex-col items-center gap-1.5"
-            style={{ background: 'var(--color-accent)', color: '#fff' }}
-          >
-            <span className="text-lg">&#128269;</span>
-            <span className="text-xs font-semibold">快速查詢</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* Document Creation Section */}
-      <div className="px-5 mb-4">
-        <p className="text-[11px] mb-2" style={{ color: 'var(--color-text-muted)' }}>單據建立</p>
-        <div className="grid grid-cols-2 gap-2">
-          <Link
-            href="/orders/create"
-            className="rounded-xl p-3 flex items-center gap-2"
-            style={{ background: 'var(--color-bg-card)' }}
-          >
-            <span className="text-lg">📋</span>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>新增客訂</span>
-          </Link>
-          <Link
-            href="/repairs/create"
-            className="rounded-xl p-3 flex items-center gap-2"
-            style={{ background: 'var(--color-bg-card)' }}
-          >
-            <span className="text-lg">🔧</span>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>新增維修</span>
-          </Link>
-          <Link
-            href="/remittance/create"
-            className="rounded-xl p-3 flex items-center gap-2"
-            style={{ background: 'var(--color-bg-card)' }}
-          >
-            <span className="text-lg">💰</span>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>匯款需求</span>
-          </Link>
-          <Link
-            href="/todo/create"
-            className="rounded-xl p-3 flex items-center gap-2"
-            style={{ background: 'var(--color-bg-card)' }}
-          >
-            <span className="text-lg">📝</span>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>新增任務</span>
-          </Link>
+      {/* Quick Links — 4 columns, compact */}
+      <div className="px-5 mb-3">
+        <div className="grid grid-cols-4 gap-1.5">
+          {[
+            { icon: '🛒', label: '商品', href: '/reports/products' },
+            { icon: '📈', label: '歷史', href: '/reports/history' },
+            { icon: '👥', label: '會員', href: '/reports/members' },
+            { icon: '📦', label: '庫存', href: '/reports/inventory' },
+            { icon: '📥', label: '進貨', href: '/reports/purchases' },
+            { icon: '🔧', label: '維修', href: '/reports/repairs' },
+            { icon: '📋', label: '客訂', href: '/reports/orders' },
+            { icon: '💰', label: '匯款', href: '/remittance' },
+          ].map(link => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="rounded-xl p-2.5 flex flex-col items-center gap-1"
+              style={{ background: 'var(--color-bg-card)' }}
+            >
+              <span className="text-base">{link.icon}</span>
+              <span className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>{link.label}</span>
+            </Link>
+          ))}
         </div>
       </div>
 

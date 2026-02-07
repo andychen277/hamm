@@ -19,6 +19,17 @@ interface UserInfo {
   store: string;
 }
 
+interface PendingShipment {
+  id: number;
+  shipment_id: string;
+  cust_po_number: string;
+  ship_to: string;
+  date_shipped: string;
+  shipped_total: number;
+  shipped_qty: number;
+  tracking_url: string;
+}
+
 export default function ReceivingPage() {
   const [items, setItems] = useState<ScannedItem[]>([]);
   const [store, setStore] = useState('台南');
@@ -32,6 +43,9 @@ export default function ReceivingPage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [pendingShipments, setPendingShipments] = useState<PendingShipment[]>([]);
+  const [showPending, setShowPending] = useState(false);
+  const [loadingPending, setLoadingPending] = useState(false);
 
   const scannerRef = useRef<unknown>(null);
   const lastScanRef = useRef<{ barcode: string; time: number }>({ barcode: '', time: 0 });
@@ -52,6 +66,16 @@ export default function ReceivingPage() {
           if (data.user.store_access?.[0] && data.user.store_access[0] !== 'all') {
             setStore(data.user.store_access[0]);
           }
+        }
+      })
+      .catch(() => {});
+
+    // Fetch pending Specialized shipments
+    fetch('/api/specialized/shipments/pending-receive')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.data.length > 0) {
+          setPendingShipments(data.data);
         }
       })
       .catch(() => {});
@@ -241,6 +265,28 @@ export default function ReceivingPage() {
     }
   };
 
+  // Load a Specialized shipment into the form
+  const loadSpecShipment = async (shipment: PendingShipment) => {
+    setLoadingPending(true);
+    setSupplier('Specialized');
+    setNote(`Spec Shipment: ${shipment.shipment_id} / PO: ${shipment.cust_po_number}`);
+    setShowPending(false);
+
+    // Try to parse items from raw_data via API
+    // For now, create a placeholder entry for the shipment
+    const newItem: ScannedItem = {
+      product_id: shipment.cust_po_number || shipment.shipment_id,
+      product_name: `Specialized ${shipment.ship_to || ''} (PO: ${shipment.cust_po_number})`.trim(),
+      barcode: shipment.shipment_id,
+      price: shipment.shipped_total || 0,
+      quantity: shipment.shipped_qty || 1,
+      found: true,
+    };
+    setItems(prev => [newItem, ...prev]);
+    showToast('Specialized 出貨已載入', 'success');
+    setLoadingPending(false);
+  };
+
   const totalItems = items.length;
   const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -350,6 +396,54 @@ export default function ReceivingPage() {
           }}
         >
           {toast.message}
+        </div>
+      )}
+
+      {/* Specialized Pending Shipments Banner */}
+      {pendingShipments.length > 0 && (
+        <div className="px-4 py-2">
+          <button
+            onClick={() => setShowPending(!showPending)}
+            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm"
+            style={{ background: 'rgba(147,51,234,0.15)', border: '1px solid rgba(147,51,234,0.3)' }}
+          >
+            <span style={{ color: 'rgb(147,51,234)' }}>
+              Specialized {pendingShipments.length} 筆待收貨
+            </span>
+            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              {showPending ? '收合 ▲' : '展開 ▼'}
+            </span>
+          </button>
+          {showPending && (
+            <div className="mt-2 space-y-2">
+              {pendingShipments.map(s => (
+                <div
+                  key={s.shipment_id}
+                  className="flex items-center justify-between p-3 rounded-xl"
+                  style={{ background: 'var(--color-bg-card)', border: '1px solid rgba(147,51,234,0.2)' }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>
+                      PO: {s.cust_po_number || s.shipment_id}
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      {s.date_shipped} {s.ship_to ? `/ ${s.ship_to}` : ''}
+                      {s.shipped_qty > 0 && ` / ${s.shipped_qty} 件`}
+                      {s.shipped_total > 0 && ` / $${s.shipped_total.toLocaleString()}`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => loadSpecShipment(s)}
+                    disabled={loadingPending}
+                    className="ml-2 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0"
+                    style={{ background: 'rgb(147,51,234)', color: '#fff' }}
+                  >
+                    載入
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

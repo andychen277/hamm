@@ -202,6 +202,47 @@ export const DB_SCHEMA = `
 - started_at: timestamp
 - completed_at: timestamp
 
+### spec_shipments (Specialized B2B 出貨記錄)
+- id: integer (PK)
+- shipment_id: varchar (UNIQUE) — Specialized 出貨編號
+- cust_po_number: varchar — 客戶 PO 號碼
+- ship_to: varchar — 收貨地址/門市
+- order_type: varchar — 訂單類型
+- date_shipped: date — 出貨日期
+- shipped_total: numeric — 出貨總金額
+- shipped_qty: integer — 出貨總數量
+- tracking_url: varchar — 追蹤連結
+- currency_code: varchar — 幣別 (TWD)
+- raw_data: jsonb — API 原始回傳
+- created_at: timestamp
+- updated_at: timestamp
+
+### spec_orders (Specialized B2B 訂單歷史)
+- id: integer (PK)
+- order_id: varchar (UNIQUE) — Specialized 訂單 ID
+- order_number: varchar — 訂單編號
+- order_type: varchar — 訂單類型
+- order_date: date — 訂單日期
+- order_status: varchar — 狀態
+- total_amount: numeric — 總金額
+- currency_code: varchar (TWD)
+- raw_data: jsonb
+- created_at: timestamp
+- updated_at: timestamp
+
+### spec_pending_orders (Specialized B2B 待處理訂單/在途)
+- id: integer (PK)
+- order_id: varchar (UNIQUE) — Specialized 訂單 ID
+- order_number: varchar — 訂單編號
+- order_type: varchar — 訂單類型
+- order_status: varchar — 狀態
+- total_amount: numeric — 總金額
+- submitted_date: date — 送出日期
+- currency_code: varchar (TWD)
+- raw_data: jsonb
+- created_at: timestamp
+- updated_at: timestamp
+
 ### purchase_history (消費歷史, legacy)
 - id: integer (PK)
 - member_id: integer (FK → unified_members.id)
