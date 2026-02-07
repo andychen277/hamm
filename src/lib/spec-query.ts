@@ -131,7 +131,8 @@ export async function getInventoryWithTransit() {
   const inTransitResult = await query(
     `SELECT s.id, s.shipment_id, s.cust_po_number, s.ship_to,
             TO_CHAR(s.date_shipped, 'YYYY-MM-DD') as date_shipped,
-            s.shipped_total, s.shipped_qty
+            s.shipped_total, s.shipped_qty, s.tracking_url,
+            s.raw_data->>'store' as store
      FROM spec_shipments s
      WHERE s.date_shipped >= CURRENT_DATE - 30
        AND NOT EXISTS (

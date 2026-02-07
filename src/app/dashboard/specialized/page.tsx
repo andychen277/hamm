@@ -12,6 +12,7 @@ interface ShipmentItem {
   shipped_total: number;
   shipped_qty: number;
   tracking_url: string;
+  store: string;
 }
 
 interface PendingOrderItem {
@@ -76,6 +77,9 @@ export default function SpecializedDashboard() {
   const [confirmStore, setConfirmStore] = useState('台南');
   const [confirming, setConfirming] = useState(false);
   const [confirmMsg, setConfirmMsg] = useState('');
+
+  // Store filter state (for transit tab)
+  const [storeFilter, setStoreFilter] = useState<string>('all');
 
   // Sync state
   const [syncing, setSyncing] = useState(false);
@@ -474,22 +478,71 @@ export default function SpecializedDashboard() {
                 )}
 
                 {/* In-Transit Tab */}
-                {activeTab === 'transit' && (
+                {activeTab === 'transit' && (() => {
+                  const filteredTransit = storeFilter === 'all'
+                    ? data.inTransit
+                    : data.inTransit.filter(s => s.store === storeFilter);
+
+                  // Count per store for tab badges
+                  const storeCounts: Record<string, number> = {};
+                  for (const s of data.inTransit) {
+                    if (s.store) storeCounts[s.store] = (storeCounts[s.store] || 0) + 1;
+                  }
+
+                  return (
                   <div className="space-y-2">
-                    {data.inTransit.length === 0 ? (
+                    {/* Store Filter Tabs */}
+                    <div className="flex gap-1 mb-3 overflow-x-auto">
+                      <button
+                        onClick={() => setStoreFilter('all')}
+                        className="px-3 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap"
+                        style={{
+                          background: storeFilter === 'all' ? 'var(--color-text-primary)' : 'var(--color-bg-card)',
+                          color: storeFilter === 'all' ? 'var(--color-bg-primary)' : 'var(--color-text-muted)',
+                        }}
+                      >
+                        全部 ({data.inTransit.length})
+                      </button>
+                      {['台南', '台北', '台中', '高雄'].map(store => (
+                        <button
+                          key={store}
+                          onClick={() => setStoreFilter(store)}
+                          className="px-3 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap"
+                          style={{
+                            background: storeFilter === store ? (STORE_COLORS[store] || 'var(--color-accent)') : 'var(--color-bg-card)',
+                            color: storeFilter === store ? '#fff' : 'var(--color-text-muted)',
+                          }}
+                        >
+                          {store} ({storeCounts[store] || 0})
+                        </button>
+                      ))}
+                    </div>
+
+                    {filteredTransit.length === 0 ? (
                       <p className="text-sm text-center py-8" style={{ color: 'var(--color-text-muted)' }}>
-                        目前無在途出貨
+                        {storeFilter === 'all' ? '目前無在途出貨' : `${storeFilter} 目前無在途出貨`}
                       </p>
-                    ) : data.inTransit.map(s => (
+                    ) : filteredTransit.map(s => (
                       <div key={s.shipment_id} className="rounded-xl p-3" style={{ background: 'var(--color-bg-card)' }}>
                         <div
                           onClick={() => router.push(`/dashboard/specialized/shipment/${s.id}`)}
                           className="cursor-pointer active:opacity-80"
                         >
                           <div className="flex justify-between items-start mb-1">
-                            <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                              {s.cust_po_number || s.shipment_id}
-                            </p>
+                            <div className="flex items-center gap-1.5">
+                              {s.store && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded font-medium"
+                                  style={{
+                                    background: (STORE_COLORS[s.store] || 'var(--color-accent)') + '22',
+                                    color: STORE_COLORS[s.store] || 'var(--color-accent)',
+                                  }}>
+                                  {s.store}
+                                </span>
+                              )}
+                              <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                                {s.cust_po_number || s.shipment_id}
+                              </p>
+                            </div>
                             <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                               {s.date_shipped}
                             </span>
@@ -520,7 +573,8 @@ export default function SpecializedDashboard() {
                       </div>
                     ))}
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Pending Orders Tab */}
                 {activeTab === 'pending' && (
