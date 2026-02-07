@@ -211,6 +211,37 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {/* Alien - Quick Actions */}
+      <div className="px-5 mb-4">
+        <p className="text-[11px] mb-2" style={{ color: 'var(--color-text-muted)' }}>&#128125; Alien 掃描工具</p>
+        <div className="grid grid-cols-3 gap-2">
+          <Link
+            href="/receiving"
+            className="rounded-xl p-3 flex flex-col items-center gap-1.5"
+            style={{ background: 'var(--color-accent)', color: '#fff' }}
+          >
+            <span className="text-lg">&#128230;</span>
+            <span className="text-xs font-semibold">掃描進貨</span>
+          </Link>
+          <Link
+            href="/transfer"
+            className="rounded-xl p-3 flex flex-col items-center gap-1.5"
+            style={{ background: 'var(--color-accent)', color: '#fff' }}
+          >
+            <span className="text-lg">&#128666;</span>
+            <span className="text-xs font-semibold">掃描調貨</span>
+          </Link>
+          <Link
+            href="/scan"
+            className="rounded-xl p-3 flex flex-col items-center gap-1.5"
+            style={{ background: 'var(--color-accent)', color: '#fff' }}
+          >
+            <span className="text-lg">&#128269;</span>
+            <span className="text-xs font-semibold">快速查詢</span>
+          </Link>
+        </div>
+      </div>
+
       {/* Document Creation Section */}
       <div className="px-5 mb-4">
         <p className="text-[11px] mb-2" style={{ color: 'var(--color-text-muted)' }}>單據建立</p>
