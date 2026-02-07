@@ -10,6 +10,7 @@ interface OrderItem {
   store: string;
   order_date: string;
   employee_code: string;
+  staff_name: string;
   customer_name: string;
   customer_phone: string;
   product_info: string;
@@ -137,7 +138,7 @@ function OrdersContent() {
         {/* Customer search */}
         <input
           type="text"
-          placeholder="搜尋客戶姓名、電話或商品..."
+          placeholder="搜尋客戶姓名、電話、商品或開單人員..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSearch()}
@@ -330,9 +331,11 @@ function OrdersContent() {
                       </p>
                     )}
 
-                    {/* Payment info */}
+                    {/* Staff & Payment info */}
                     <div className="flex justify-between text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                      <span>訂金: {fmt$(item.deposit_paid)}</span>
+                      <span>
+                        {item.staff_name && `${item.staff_name} · `}訂金: {fmt$(item.deposit_paid)}
+                      </span>
                       <span style={{ color: item.balance > 0 ? 'var(--color-warning)' : 'var(--color-text-muted)' }}>
                         尾款: {fmt$(item.balance)}
                       </span>

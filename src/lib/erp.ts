@@ -181,7 +181,8 @@ export interface OrderData {
   prepay_cash?: number;
   prepay_card?: number;
   prepay_transfer?: number;
-  prepay_remit?: number;
+  prepay_linepay?: number;
+  prepay_smartpay?: number;
 }
 
 export interface StaffInfo {
@@ -214,7 +215,7 @@ export async function createOrder(
     pamt02: String(orderData.prepay_cash || 0),
     pamt03: String(orderData.prepay_card || 0),
     pamt04: String(orderData.prepay_transfer || 0),
-    pamt05: String(orderData.prepay_remit || 0),
+    pamt05: String((orderData.prepay_linepay || 0) + (orderData.prepay_smartpay || 0)),
     fnoa: fnoa,
   };
 

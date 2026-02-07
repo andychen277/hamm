@@ -10,6 +10,7 @@ interface OrderDetail {
   store: string;
   order_date: string;
   employee_code: string;
+  staff_name: string;
   customer_name: string;
   customer_phone: string;
   product_info: string;
@@ -73,6 +74,14 @@ export default function OrderDetailPage() {
   const [data, setData] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Edit state
+  const [editing, setEditing] = useState(false);
+  const [editProduct, setEditProduct] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editDeposit, setEditDeposit] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveResult, setSaveResult] = useState<{ success: boolean; message: string } | null>(null);
+
   // Notification state
   const [showNotifyPanel, setShowNotifyPanel] = useState(false);
   const [notifyMessage, setNotifyMessage] = useState('');
@@ -135,6 +144,55 @@ export default function OrderDetailPage() {
     }
   };
 
+  const startEdit = () => {
+    if (!data) return;
+    setEditProduct(data.product_info);
+    setEditAmount(String(data.total_amount));
+    setEditDeposit(String(data.deposit_paid));
+    setEditing(true);
+    setSaveResult(null);
+  };
+
+  const handleSave = async () => {
+    if (!data) return;
+    setSaving(true);
+    setSaveResult(null);
+
+    try {
+      const res = await fetch(`/api/reports/orders/${encodeURIComponent(orderId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_info: editProduct,
+          total_amount: Number(editAmount) || 0,
+          deposit_paid: Number(editDeposit) || 0,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (json.success) {
+        const newAmount = Number(editAmount) || 0;
+        const newDeposit = Number(editDeposit) || 0;
+        setData(prev => prev ? {
+          ...prev,
+          product_info: editProduct,
+          total_amount: newAmount,
+          deposit_paid: newDeposit,
+          balance: newAmount - newDeposit,
+        } : null);
+        setEditing(false);
+        setSaveResult({ success: true, message: '已儲存修改' });
+      } else {
+        setSaveResult({ success: false, message: json.error || '儲存失敗' });
+      }
+    } catch {
+      setSaveResult({ success: false, message: '儲存失敗' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="pb-20 min-h-screen">
       {/* Header */}
@@ -143,6 +201,15 @@ export default function OrderDetailPage() {
         <h1 className="text-lg font-bold flex-1" style={{ color: 'var(--color-text-primary)' }}>
           客訂詳情
         </h1>
+        {data && !editing && (
+          <button
+            onClick={startEdit}
+            className="text-sm px-3 py-1 rounded-lg"
+            style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-accent)' }}
+          >
+            編輯
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -156,6 +223,19 @@ export default function OrderDetailPage() {
         </div>
       ) : (
         <div className="px-5">
+          {/* Save Result */}
+          {saveResult && (
+            <div
+              className="rounded-xl p-3 mb-3 text-sm"
+              style={{
+                background: saveResult.success ? 'var(--color-positive)' : 'var(--color-negative)',
+                color: '#fff',
+              }}
+            >
+              {saveResult.success ? '✓' : '✗'} {saveResult.message}
+            </div>
+          )}
+
           {/* Notify Result */}
           {notifyResult && (
             <div
@@ -188,6 +268,11 @@ export default function OrderDetailPage() {
                 {data.status}
               </span>
             </div>
+            {data.staff_name && (
+              <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                開單人員: {data.staff_name}
+              </p>
+            )}
             <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
               開單日期: {data.order_date}
             </p>
@@ -229,36 +314,95 @@ export default function OrderDetailPage() {
           </Card>
 
           {/* Product Info */}
-          {data.product_info && (
-            <Card title="📦 商品資訊">
+          <Card title="📦 商品資訊">
+            {editing ? (
+              <textarea
+                value={editProduct}
+                onChange={e => setEditProduct(e.target.value)}
+                rows={4}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
+                style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
+                placeholder="輸入商品資訊..."
+              />
+            ) : (
               <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--color-text-secondary)' }}>
-                {data.product_info}
+                {data.product_info || '(無商品資訊)'}
               </p>
-            </Card>
-          )}
+            )}
+          </Card>
 
           {/* Payment Info */}
           <Card title="💰 金額資訊">
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>總金額</span>
-                <span className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>
-                  {fmt$(data.total_amount)}
-                </span>
+            {editing ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs mb-1 block" style={{ color: 'var(--color-text-muted)' }}>總金額</label>
+                  <input
+                    type="number"
+                    value={editAmount}
+                    onChange={e => setEditAmount(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                    style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs mb-1 block" style={{ color: 'var(--color-text-muted)' }}>已付訂金</label>
+                  <input
+                    type="number"
+                    value={editDeposit}
+                    onChange={e => setEditDeposit(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                    style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
+                  />
+                </div>
+                <div className="flex justify-between text-sm pt-2 border-t" style={{ borderColor: 'var(--color-bg-card-alt)' }}>
+                  <span style={{ color: 'var(--color-text-muted)' }}>尾款</span>
+                  <span className="font-bold" style={{ color: 'var(--color-warning)' }}>
+                    {fmt$((Number(editAmount) || 0) - (Number(editDeposit) || 0))}
+                  </span>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setEditing(false); setSaveResult(null); }}
+                    className="flex-1 py-2 rounded-lg text-sm font-medium"
+                    style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-muted)' }}
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="flex-1 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                    style={{ background: 'var(--color-accent)', color: '#fff' }}
+                  >
+                    {saving ? '儲存中...' : '儲存修改'}
+                  </button>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>已付訂金</span>
-                <span className="text-sm font-bold" style={{ color: 'var(--color-positive)' }}>
-                  {fmt$(data.deposit_paid)}
-                </span>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>總金額</span>
+                  <span className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>
+                    {fmt$(data.total_amount)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>已付訂金</span>
+                  <span className="text-sm font-bold" style={{ color: 'var(--color-positive)' }}>
+                    {fmt$(data.deposit_paid)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>尾款</span>
+                  <span className="text-sm font-bold" style={{ color: data.balance > 0 ? 'var(--color-warning)' : 'var(--color-text-muted)' }}>
+                    {fmt$(data.balance)}
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>尾款</span>
-                <span className="text-sm font-bold" style={{ color: data.balance > 0 ? 'var(--color-warning)' : 'var(--color-text-muted)' }}>
-                  {fmt$(data.balance)}
-                </span>
-              </div>
-            </div>
+            )}
           </Card>
 
           {/* Notify Button */}

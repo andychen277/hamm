@@ -1,6 +1,80 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const orderId = decodeURIComponent(id);
+    const body = await req.json();
+
+    const { product_info, total_amount, deposit_paid, status } = body;
+
+    const sets: string[] = [];
+    const values: (string | number)[] = [];
+    let i = 1;
+
+    // Track param indices for balance calculation
+    let amtIdx = 0;
+    let depIdx = 0;
+
+    if (product_info !== undefined) {
+      sets.push(`product_info = $${i}`);
+      values.push(product_info);
+      i++;
+    }
+    if (total_amount !== undefined) {
+      sets.push(`total_amount = $${i}`);
+      values.push(Number(total_amount));
+      amtIdx = i;
+      i++;
+    }
+    if (deposit_paid !== undefined) {
+      sets.push(`deposit_paid = $${i}`);
+      values.push(Number(deposit_paid));
+      depIdx = i;
+      i++;
+    }
+    if (status !== undefined) {
+      sets.push(`status = $${i}`);
+      values.push(status);
+      i++;
+    }
+
+    if (sets.length === 0) {
+      return NextResponse.json({ success: false, error: '沒有要更新的欄位' }, { status: 400 });
+    }
+
+    // Auto-recalculate balance
+    if (amtIdx || depIdx) {
+      const amtExpr = amtIdx ? `$${amtIdx}` : 'total_amount';
+      const depExpr = depIdx ? `$${depIdx}` : 'deposit_paid';
+      sets.push(`balance = ${amtExpr} - ${depExpr}`);
+    }
+
+    sets.push(`updated_at = NOW()`);
+
+    values.push(orderId);
+    const sql = `UPDATE customer_orders SET ${sets.join(', ')} WHERE order_id = $${i} RETURNING order_id`;
+
+    const result = await query(sql, values);
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({ success: false, error: '找不到客訂單' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, data: { order_id: orderId } });
+  } catch (error) {
+    console.error('Order update error:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Update failed' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -16,6 +90,7 @@ export async function GET(
         store,
         TO_CHAR(order_date, 'YYYY-MM-DD') as order_date,
         employee_code,
+        staff_name,
         customer_name,
         customer_phone,
         product_info,
@@ -107,6 +182,7 @@ export async function GET(
         store: order.store,
         order_date: order.order_date,
         employee_code: order.employee_code,
+        staff_name: order.staff_name || '',
         customer_name: order.customer_name || '',
         customer_phone: order.customer_phone || '',
         product_info: order.product_info || '',

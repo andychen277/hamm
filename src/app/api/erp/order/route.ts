@@ -17,7 +17,8 @@ export async function POST(req: NextRequest) {
       prepay_cash,
       prepay_card,
       prepay_transfer,
-      prepay_remit,
+      prepay_linepay,
+      prepay_smartpay,
       store,
       staffName,
       ccList,
@@ -51,7 +52,8 @@ export async function POST(req: NextRequest) {
         prepay_cash: Number(prepay_cash) || 0,
         prepay_card: Number(prepay_card) || 0,
         prepay_transfer: Number(prepay_transfer) || 0,
-        prepay_remit: Number(prepay_remit) || 0,
+        prepay_linepay: Number(prepay_linepay) || 0,
+        prepay_smartpay: Number(prepay_smartpay) || 0,
       },
       {
         store_code: storeCode,
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest) {
     // Also insert into local DB for immediate visibility
     try {
       const totalPrepay = (Number(prepay_cash) || 0) + (Number(prepay_card) || 0) +
-                          (Number(prepay_transfer) || 0) + (Number(prepay_remit) || 0);
+                          (Number(prepay_transfer) || 0) + (Number(prepay_linepay) || 0) + (Number(prepay_smartpay) || 0);
       const balance = Number(price) - totalPrepay;
       await query(`
         INSERT INTO customer_orders (

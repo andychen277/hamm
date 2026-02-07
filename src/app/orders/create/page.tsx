@@ -43,8 +43,10 @@ export default function CreateOrderPage() {
   const [prepay_cash, setPrepay_cash] = useState('');
   const [prepay_card, setPrepay_card] = useState('');
   const [prepay_transfer, setPrepay_transfer] = useState('');
-  const [prepay_remit, setPrepay_remit] = useState('');
+  const [prepay_linepay, setPrepay_linepay] = useState('');
+  const [prepay_smartpay, setPrepay_smartpay] = useState('');
   const [staffName, setStaffName] = useState('');
+  const [customTotal, setCustomTotal] = useState('');
 
   // Product multi-select state
   const [products, setProducts] = useState<ProductItem[]>([]);
@@ -243,10 +245,17 @@ export default function CreateOrderPage() {
   };
 
   // Calculate totals
-  const totalPrice = products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
+  const suggestedTotal = products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
+  const totalPrice = customTotal !== '' ? (Number(customTotal) || 0) : suggestedTotal;
   const totalPrepay = (Number(prepay_cash) || 0) + (Number(prepay_card) || 0) +
-    (Number(prepay_transfer) || 0) + (Number(prepay_remit) || 0);
+    (Number(prepay_transfer) || 0) + (Number(prepay_linepay) || 0) + (Number(prepay_smartpay) || 0);
   const balance = totalPrice - totalPrepay;
+
+  // Sync customTotal when products change
+  useEffect(() => {
+    const calc = products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
+    setCustomTotal(calc > 0 ? String(calc) : '');
+  }, [products]);
 
   // Build product description for ERP
   const buildProductDesc = () => {
@@ -285,7 +294,8 @@ export default function CreateOrderPage() {
           prepay_cash: Number(prepay_cash) || 0,
           prepay_card: Number(prepay_card) || 0,
           prepay_transfer: Number(prepay_transfer) || 0,
-          prepay_remit: Number(prepay_remit) || 0,
+          prepay_linepay: Number(prepay_linepay) || 0,
+          prepay_smartpay: Number(prepay_smartpay) || 0,
           store,
           staffName: staffName || undefined,
           ccList: ccList.length > 0 ? ccList : undefined,
@@ -304,7 +314,8 @@ export default function CreateOrderPage() {
         setPrepay_cash('');
         setPrepay_card('');
         setPrepay_transfer('');
-        setPrepay_remit('');
+        setPrepay_linepay('');
+        setPrepay_smartpay('');
       } else {
         setError(json.error || '建立失敗');
       }
@@ -581,12 +592,31 @@ export default function CreateOrderPage() {
               {/* Total */}
               <div className="pt-2 border-t flex justify-between items-center"
                 style={{ borderColor: 'var(--color-bg-card-alt)' }}>
-                <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                  商品總計
-                </span>
-                <span className="text-lg font-bold" style={{ color: 'var(--color-accent)' }}>
-                  ${totalPrice.toLocaleString()}
-                </span>
+                <div>
+                  <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                    商品總計
+                  </span>
+                  {Number(customTotal) !== suggestedTotal && suggestedTotal > 0 && (
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                      建議售價: ${suggestedTotal.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-lg font-bold" style={{ color: 'var(--color-accent)' }}>$</span>
+                  <input
+                    type="number"
+                    value={customTotal}
+                    onChange={e => setCustomTotal(e.target.value)}
+                    placeholder="0"
+                    className="w-28 px-2 py-1.5 rounded-lg text-lg font-bold text-right outline-none border"
+                    style={{
+                      background: 'var(--color-bg-card)',
+                      color: 'var(--color-accent)',
+                      borderColor: 'var(--color-accent)',
+                    }}
+                  />
+                </div>
               </div>
             </div>
           ) : (
@@ -679,12 +709,26 @@ export default function CreateOrderPage() {
 
             <div>
               <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--color-text-muted)' }}>
-                🏦 匯款
+                LINE Pay
               </label>
               <input
                 type="number"
-                value={prepay_remit}
-                onChange={e => setPrepay_remit(e.target.value)}
+                value={prepay_linepay}
+                onChange={e => setPrepay_linepay(e.target.value)}
+                placeholder="0"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--color-text-muted)' }}>
+                智富通
+              </label>
+              <input
+                type="number"
+                value={prepay_smartpay}
+                onChange={e => setPrepay_smartpay(e.target.value)}
                 placeholder="0"
                 className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                 style={{ background: 'var(--color-bg-card-alt)', color: 'var(--color-text-primary)' }}

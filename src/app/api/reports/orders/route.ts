@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
         store,
         TO_CHAR(order_date, 'YYYY-MM-DD') as order_date,
         employee_code,
+        staff_name,
         customer_name,
         customer_phone,
         product_info,
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
     let paramIndex = 1;
 
     if (q) {
-      sql += ` AND (customer_name ILIKE $${paramIndex} OR customer_phone ILIKE $${paramIndex} OR product_info ILIKE $${paramIndex})`;
+      sql += ` AND (customer_name ILIKE $${paramIndex} OR customer_phone ILIKE $${paramIndex} OR product_info ILIKE $${paramIndex} OR staff_name ILIKE $${paramIndex})`;
       params.push(`%${q}%`);
       paramIndex++;
     }
@@ -75,6 +76,7 @@ export async function GET(req: NextRequest) {
         store: r.store,
         order_date: r.order_date,
         employee_code: r.employee_code,
+        staff_name: r.staff_name || '',
         customer_name: r.customer_name || '',
         customer_phone: r.customer_phone || '',
         product_info: r.product_info || '',
