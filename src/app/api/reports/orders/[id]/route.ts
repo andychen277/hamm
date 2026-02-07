@@ -26,13 +26,13 @@ export async function PATCH(
       i++;
     }
     if (total_amount !== undefined) {
-      sets.push(`total_amount = $${i}`);
+      sets.push(`total_amount = $${i}::numeric`);
       values.push(Number(total_amount));
       amtIdx = i;
       i++;
     }
     if (deposit_paid !== undefined) {
-      sets.push(`deposit_paid = $${i}`);
+      sets.push(`deposit_paid = $${i}::numeric`);
       values.push(Number(deposit_paid));
       depIdx = i;
       i++;
@@ -47,10 +47,10 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: '沒有要更新的欄位' }, { status: 400 });
     }
 
-    // Auto-recalculate balance
+    // Auto-recalculate balance (cast to numeric to avoid "operator is not unique" error)
     if (amtIdx || depIdx) {
-      const amtExpr = amtIdx ? `$${amtIdx}` : 'total_amount';
-      const depExpr = depIdx ? `$${depIdx}` : 'deposit_paid';
+      const amtExpr = amtIdx ? `$${amtIdx}::numeric` : 'total_amount';
+      const depExpr = depIdx ? `$${depIdx}::numeric` : 'deposit_paid';
       sets.push(`balance = ${amtExpr} - ${depExpr}`);
     }
 
