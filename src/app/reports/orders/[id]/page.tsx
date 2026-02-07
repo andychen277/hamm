@@ -88,6 +88,10 @@ export default function OrderDetailPage() {
   const [notifying, setNotifying] = useState(false);
   const [notifyResult, setNotifyResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  // Close case state
+  const [closing, setClosing] = useState(false);
+  const [closeResult, setCloseResult] = useState<{ success: boolean; message: string } | null>(null);
+
   useEffect(() => {
     async function fetchData() {
       try {
@@ -141,6 +145,30 @@ export default function OrderDetailPage() {
       setNotifyResult({ success: false, message: '發送失敗，請稍後再試' });
     } finally {
       setNotifying(false);
+    }
+  };
+
+  const handleClose = async () => {
+    if (!data || closing) return;
+    setClosing(true);
+    setCloseResult(null);
+    try {
+      const res = await fetch(`/api/reports/orders/${encodeURIComponent(orderId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: '結案' }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setData(prev => prev ? { ...prev, status: '結案' } : null);
+        setCloseResult({ success: true, message: '已結案' });
+      } else {
+        setCloseResult({ success: false, message: json.error || '結案失敗' });
+      }
+    } catch {
+      setCloseResult({ success: false, message: '網路錯誤，請重試' });
+    } finally {
+      setClosing(false);
     }
   };
 
@@ -243,6 +271,19 @@ export default function OrderDetailPage() {
               }}
             >
               {saveResult.success ? '✓' : '✗'} {saveResult.message}
+            </div>
+          )}
+
+          {/* Close Result */}
+          {closeResult && (
+            <div
+              className="rounded-xl p-3 mb-3 text-sm"
+              style={{
+                background: closeResult.success ? 'var(--color-positive)' : 'var(--color-negative)',
+                color: '#fff',
+              }}
+            >
+              {closeResult.success ? '✓' : '✗'} {closeResult.message}
             </div>
           )}
 
@@ -475,6 +516,20 @@ export default function OrderDetailPage() {
                   {notifying ? '發送中...' : '發送通知'}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Close Case Button */}
+          {data.status !== '結案' && data.status !== '作廢' && (
+            <div className="mb-3">
+              <button
+                onClick={handleClose}
+                disabled={closing}
+                className="w-full py-3 rounded-2xl text-sm font-semibold transition-opacity disabled:opacity-50"
+                style={{ background: 'var(--color-text-muted)', color: '#fff' }}
+              >
+                {closing ? '處理中...' : '結案'}
+              </button>
             </div>
           )}
 

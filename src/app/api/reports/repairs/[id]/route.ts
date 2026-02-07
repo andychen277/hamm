@@ -1,6 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const repairId = decodeURIComponent(id);
+    const body = await req.json();
+    const { status } = body;
+
+    if (!status) {
+      return NextResponse.json({ success: false, error: '缺少 status 欄位' }, { status: 400 });
+    }
+
+    const result = await query(
+      `UPDATE repairs SET status = $1, updated_at = NOW() WHERE repair_id = $2 RETURNING repair_id, status`,
+      [status, repairId]
+    );
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({ success: false, error: '找不到維修單' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Repair update error:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Update failed' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

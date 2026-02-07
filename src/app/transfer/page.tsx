@@ -120,15 +120,28 @@ export default function TransferPage() {
 
     async function initScanner() {
       try {
-        const { Html5Qrcode } = await import('html5-qrcode');
+        const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
         if (!mounted) return;
 
-        const scanner = new Html5Qrcode('transfer-scanner');
+        const scanner = new Html5Qrcode('transfer-scanner', {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.QR_CODE,
+          ],
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+          verbose: false,
+        });
         scannerRef.current = scanner;
 
+        const boxW = Math.min(Math.floor(window.innerWidth * 0.85), 400);
         await scanner.start(
           { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.5 },
+          { fps: 15, qrbox: { width: boxW, height: Math.floor(boxW * 0.45) } },
           (decodedText: string) => onScanSuccess(decodedText),
           () => {}
         );

@@ -82,6 +82,34 @@ export default function RepairDetailPage() {
   const [notifying, setNotifying] = useState(false);
   const [notifyResult, setNotifyResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  // Close case state
+  const [closing, setClosing] = useState(false);
+  const [closeResult, setCloseResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleClose = async () => {
+    if (!data || closing) return;
+    setClosing(true);
+    setCloseResult(null);
+    try {
+      const res = await fetch(`/api/reports/repairs/${encodeURIComponent(repairId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: '已取車' }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setData(prev => prev ? { ...prev, status: '已取車' } : null);
+        setCloseResult({ success: true, message: '已結案（已取車）' });
+      } else {
+        setCloseResult({ success: false, message: json.error || '結案失敗' });
+      }
+    } catch {
+      setCloseResult({ success: false, message: '網路錯誤，請重試' });
+    } finally {
+      setClosing(false);
+    }
+  };
+
   const handleNotify = async () => {
     if (!data) return;
 
@@ -159,6 +187,19 @@ export default function RepairDetailPage() {
         </div>
       ) : (
         <div className="px-5">
+          {/* Close Result */}
+          {closeResult && (
+            <div
+              className="rounded-xl p-3 mb-3 text-sm"
+              style={{
+                background: closeResult.success ? 'var(--color-positive)' : 'var(--color-negative)',
+                color: '#fff',
+              }}
+            >
+              {closeResult.success ? '✓' : '✗'} {closeResult.message}
+            </div>
+          )}
+
           {/* Notify Result */}
           {notifyResult && (
             <div
@@ -351,6 +392,20 @@ export default function RepairDetailPage() {
                   {notifying ? '發送中...' : '發送通知'}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Close Case Button */}
+          {data.status !== '已取車' && data.status !== '已取消' && (
+            <div className="mb-3">
+              <button
+                onClick={handleClose}
+                disabled={closing}
+                className="w-full py-3 rounded-2xl text-sm font-semibold transition-opacity disabled:opacity-50"
+                style={{ background: 'var(--color-text-muted)', color: '#fff' }}
+              >
+                {closing ? '處理中...' : '結案（已取車）'}
+              </button>
             </div>
           )}
 
