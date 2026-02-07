@@ -74,6 +74,31 @@ export default function HistorySalesPage() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
+  // 年度排序
+  type YearlySortField = 'year' | 'revenue';
+  type SortOrder = 'asc' | 'desc';
+  const [yearlySortField, setYearlySortField] = useState<YearlySortField>('year');
+  const [yearlySortOrder, setYearlySortOrder] = useState<SortOrder>('desc');
+
+  const sortedYearly = data?.yearly_summary
+    ? [...data.yearly_summary].sort((a, b) => {
+        const cmp = yearlySortField === 'year' ? a.year - b.year : a.total_revenue - b.total_revenue;
+        return yearlySortOrder === 'asc' ? cmp : -cmp;
+      })
+    : [];
+
+  // 月度排序
+  type MonthlySortField = 'month' | 'revenue';
+  const [monthlySortField, setMonthlySortField] = useState<MonthlySortField>('month');
+  const [monthlySortOrder, setMonthlySortOrder] = useState<SortOrder>('desc');
+
+  const sortedMonthly = data?.monthly_detail
+    ? [...data.monthly_detail].sort((a, b) => {
+        const cmp = monthlySortField === 'month' ? a.month.localeCompare(b.month) : a.total_revenue - b.total_revenue;
+        return monthlySortOrder === 'asc' ? cmp : -cmp;
+      })
+    : [];
+
   const handleSearch = useCallback(async () => {
     if (!search && !vendor) {
       return;
@@ -289,14 +314,18 @@ export default function HistorySalesPage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr style={{ color: 'var(--color-text-muted)' }}>
-                        <th className="text-left py-2 pr-2">年度</th>
+                        <th className="text-left py-2 pr-2 cursor-pointer select-none" onClick={() => { if (yearlySortField === 'year') setYearlySortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setYearlySortField('year'); setYearlySortOrder('desc'); } }}>
+                          年度 {yearlySortField === 'year' && (yearlySortOrder === 'desc' ? '↓' : '↑')}
+                        </th>
                         <th className="text-right py-2 px-2">訂單</th>
                         <th className="text-right py-2 px-2">數量</th>
-                        <th className="text-right py-2 pl-2">銷售額</th>
+                        <th className="text-right py-2 pl-2 cursor-pointer select-none" onClick={() => { if (yearlySortField === 'revenue') setYearlySortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setYearlySortField('revenue'); setYearlySortOrder('desc'); } }}>
+                          銷售額 {yearlySortField === 'revenue' && (yearlySortOrder === 'desc' ? '↓' : '↑')}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.yearly_summary.map((row, i) => (
+                      {sortedYearly.map((row, i) => (
                         <tr
                           key={row.year}
                           className="border-t"
@@ -332,14 +361,18 @@ export default function HistorySalesPage() {
                   <table className="w-full text-xs">
                     <thead className="sticky top-0" style={{ background: 'var(--color-bg-card)' }}>
                       <tr style={{ color: 'var(--color-text-muted)' }}>
-                        <th className="text-left py-2 pr-2">月份</th>
+                        <th className="text-left py-2 pr-2 cursor-pointer select-none" onClick={() => { if (monthlySortField === 'month') setMonthlySortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setMonthlySortField('month'); setMonthlySortOrder('desc'); } }}>
+                          月份 {monthlySortField === 'month' && (monthlySortOrder === 'desc' ? '↓' : '↑')}
+                        </th>
                         <th className="text-right py-2 px-2">訂單</th>
                         <th className="text-right py-2 px-2">數量</th>
-                        <th className="text-right py-2 pl-2">銷售額</th>
+                        <th className="text-right py-2 pl-2 cursor-pointer select-none" onClick={() => { if (monthlySortField === 'revenue') setMonthlySortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setMonthlySortField('revenue'); setMonthlySortOrder('desc'); } }}>
+                          銷售額 {monthlySortField === 'revenue' && (monthlySortOrder === 'desc' ? '↓' : '↑')}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.monthly_detail.map((row, i) => (
+                      {sortedMonthly.map((row, i) => (
                         <tr
                           key={row.month}
                           className="border-t"

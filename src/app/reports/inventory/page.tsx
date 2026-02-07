@@ -48,6 +48,19 @@ function InventoryContent() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
+  // 排序
+  type SortField = 'price' | 'quantity';
+  type SortOrder = 'asc' | 'desc';
+  const [sortField, setSortField] = useState<SortField>('quantity');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  const sortedResults = [...results].sort((a, b) => {
+    let cmp = 0;
+    if (sortField === 'price') cmp = a.price - b.price;
+    else cmp = a.quantity - b.quantity;
+    return sortOrder === 'asc' ? cmp : -cmp;
+  });
+
   // 自動完成相關
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -273,11 +286,30 @@ function InventoryContent() {
           </div>
         ) : results.length > 0 && (
           <>
-            <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
-              共 {results.length} 項商品
-            </p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                共 {results.length} 項商品
+              </p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>排序：</span>
+                <button
+                  onClick={() => { if (sortField === 'price') setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setSortField('price'); setSortOrder('desc'); } }}
+                  className="px-2 py-1 rounded text-[11px] font-medium"
+                  style={{ background: sortField === 'price' ? 'var(--color-accent)' : 'var(--color-bg-card-alt)', color: sortField === 'price' ? '#fff' : 'var(--color-text-secondary)' }}
+                >
+                  售價 {sortField === 'price' && (sortOrder === 'desc' ? '↓' : '↑')}
+                </button>
+                <button
+                  onClick={() => { if (sortField === 'quantity') setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setSortField('quantity'); setSortOrder('desc'); } }}
+                  className="px-2 py-1 rounded text-[11px] font-medium"
+                  style={{ background: sortField === 'quantity' ? 'var(--color-accent)' : 'var(--color-bg-card-alt)', color: sortField === 'quantity' ? '#fff' : 'var(--color-text-secondary)' }}
+                >
+                  庫存 {sortField === 'quantity' && (sortOrder === 'desc' ? '↓' : '↑')}
+                </button>
+              </div>
+            </div>
             <div className="space-y-2">
-              {results.map((item, i) => (
+              {sortedResults.map((item, i) => (
                 <div
                   key={`${item.store}-${item.product_id}-${i}`}
                   className="rounded-xl p-3"

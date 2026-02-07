@@ -50,6 +50,21 @@ function MembersContent() {
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState('');
 
+  // 交易排序
+  type SortField = 'date' | 'amount';
+  type SortOrder = 'asc' | 'desc';
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  const sortedTransactions = member?.transactions
+    ? [...member.transactions].sort((a, b) => {
+        let cmp = 0;
+        if (sortField === 'date') cmp = a.transaction_date.localeCompare(b.transaction_date);
+        else cmp = a.total - b.total;
+        return sortOrder === 'asc' ? cmp : -cmp;
+      })
+    : [];
+
   const handleSearch = useCallback(async () => {
     if (!search.trim()) return;
     setLoading(true);
@@ -192,16 +207,37 @@ function MembersContent() {
             {/* Transaction History - 非 callback 模式才顯示 */}
             {!isCallback && (
               <>
-                <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-                  交易紀錄（最近 50 筆）
-                </h3>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                    交易紀錄（最近 50 筆）
+                  </h3>
+                  {member.transactions.length > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>排序：</span>
+                      <button
+                        onClick={() => { if (sortField === 'date') setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setSortField('date'); setSortOrder('desc'); } }}
+                        className="px-2 py-1 rounded text-[11px] font-medium"
+                        style={{ background: sortField === 'date' ? 'var(--color-accent)' : 'var(--color-bg-card-alt)', color: sortField === 'date' ? '#fff' : 'var(--color-text-secondary)' }}
+                      >
+                        日期 {sortField === 'date' && (sortOrder === 'desc' ? '↓' : '↑')}
+                      </button>
+                      <button
+                        onClick={() => { if (sortField === 'amount') setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setSortField('amount'); setSortOrder('desc'); } }}
+                        className="px-2 py-1 rounded text-[11px] font-medium"
+                        style={{ background: sortField === 'amount' ? 'var(--color-accent)' : 'var(--color-bg-card-alt)', color: sortField === 'amount' ? '#fff' : 'var(--color-text-secondary)' }}
+                      >
+                        金額 {sortField === 'amount' && (sortOrder === 'desc' ? '↓' : '↑')}
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {member.transactions.length === 0 ? (
                   <p className="text-sm text-center py-4" style={{ color: 'var(--color-text-muted)' }}>
                     無交易紀錄
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {member.transactions.map((t, i) => (
+                    {sortedTransactions.map((t, i) => (
                       <div
                         key={i}
                         className="rounded-xl p-3"

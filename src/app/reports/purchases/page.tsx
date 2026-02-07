@@ -43,6 +43,20 @@ export default function PurchasesReportPage() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
+  // 排序
+  type SortField = 'cost' | 'qty' | 'ratio';
+  type SortOrder = 'asc' | 'desc';
+  const [sortField, setSortField] = useState<SortField>('cost');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  const sortedResults = [...results].sort((a, b) => {
+    let cmp = 0;
+    if (sortField === 'cost') cmp = a.total_cost - b.total_cost;
+    else if (sortField === 'qty') cmp = a.total_qty - b.total_qty;
+    else cmp = a.sales_ratio - b.sales_ratio;
+    return sortOrder === 'asc' ? cmp : -cmp;
+  });
+
   const handleSearch = useCallback(async () => {
     setLoading(true);
     setSearched(true);
@@ -193,11 +207,26 @@ export default function PurchasesReportPage() {
           </div>
         ) : results.length > 0 && (
           <>
-            <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
-              共 {results.length} 筆進貨
-            </p>
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                共 {results.length} 筆進貨
+              </p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>排序：</span>
+                {([['cost', '成本'], ['qty', '數量'], ['ratio', '進銷比']] as const).map(([field, label]) => (
+                  <button
+                    key={field}
+                    onClick={() => { if (sortField === field) setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setSortField(field); setSortOrder('desc'); } }}
+                    className="px-2 py-1 rounded text-[11px] font-medium"
+                    style={{ background: sortField === field ? 'var(--color-accent)' : 'var(--color-bg-card-alt)', color: sortField === field ? '#fff' : 'var(--color-text-secondary)' }}
+                  >
+                    {label} {sortField === field && (sortOrder === 'desc' ? '↓' : '↑')}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="space-y-2">
-              {results.map((item, i) => (
+              {sortedResults.map((item, i) => (
                 <Link
                   key={`${item.product_id}-${i}`}
                   href={`/reports/products/${encodeURIComponent(item.product_id)}`}

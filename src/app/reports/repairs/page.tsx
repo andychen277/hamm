@@ -66,6 +66,19 @@ function RepairsContent() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
+  // 排序
+  type SortField = 'date' | 'deposit';
+  type SortOrder = 'asc' | 'desc';
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  const sortedResults = [...results].sort((a, b) => {
+    let cmp = 0;
+    if (sortField === 'date') cmp = a.open_date.localeCompare(b.open_date);
+    else cmp = a.deposit - b.deposit;
+    return sortOrder === 'asc' ? cmp : -cmp;
+  });
+
   const handleSearch = useCallback(async () => {
     setLoading(true);
     setSearched(true);
@@ -251,11 +264,30 @@ function RepairsContent() {
           </div>
         ) : results.length > 0 && (
           <>
-            <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
-              共 {results.length} 筆維修
-            </p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                共 {results.length} 筆維修
+              </p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>排序：</span>
+                <button
+                  onClick={() => { if (sortField === 'date') setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setSortField('date'); setSortOrder('desc'); } }}
+                  className="px-2 py-1 rounded text-[11px] font-medium"
+                  style={{ background: sortField === 'date' ? 'var(--color-accent)' : 'var(--color-bg-card-alt)', color: sortField === 'date' ? '#fff' : 'var(--color-text-secondary)' }}
+                >
+                  日期 {sortField === 'date' && (sortOrder === 'desc' ? '↓' : '↑')}
+                </button>
+                <button
+                  onClick={() => { if (sortField === 'deposit') setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setSortField('deposit'); setSortOrder('desc'); } }}
+                  className="px-2 py-1 rounded text-[11px] font-medium"
+                  style={{ background: sortField === 'deposit' ? 'var(--color-accent)' : 'var(--color-bg-card-alt)', color: sortField === 'deposit' ? '#fff' : 'var(--color-text-secondary)' }}
+                >
+                  暫付 {sortField === 'deposit' && (sortOrder === 'desc' ? '↓' : '↑')}
+                </button>
+              </div>
+            </div>
             <div className="space-y-2">
-              {results.map((item, i) => (
+              {sortedResults.map((item, i) => (
                 <div
                   key={`${item.repair_id}-${i}`}
                   className="rounded-xl p-3"
