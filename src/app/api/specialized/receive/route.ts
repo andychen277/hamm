@@ -19,11 +19,19 @@ function generateOrderNo(storeCode: string): string {
   return `RCV${storeCode}${ts}`;
 }
 
+interface ReceiveItem {
+  product_id: string;
+  product_name: string;
+  barcode: string;
+  price: number;
+  quantity: number;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
     const body = await req.json();
-    const { shipment_id, store } = body;
+    const { shipment_id, store, items } = body;
 
     if (!shipment_id || !store) {
       return NextResponse.json(
@@ -73,42 +81,61 @@ export async function POST(req: NextRequest) {
     const orderNo = generateOrderNo(storeCode);
     const note = `Spec Shipment: ${shipment.shipment_id} / PO: ${shipment.cust_po_number || '-'}`;
 
+    // Determine items to insert
+    const receiveItems: ReceiveItem[] = (items && Array.isArray(items) && items.length > 0)
+      ? items
+      : [{
+          product_id: shipment.cust_po_number || shipment.shipment_id,
+          product_name: `Specialized ${shipment.ship_to || ''} (PO: ${shipment.cust_po_number || shipment.shipment_id})`,
+          barcode: shipment.shipment_id,
+          price: shipment.shipped_total || 0,
+          quantity: shipment.shipped_qty || 1,
+        }];
+
+    const totalItems = receiveItems.length;
+    const totalQty = receiveItems.reduce((sum, i) => sum + (i.quantity || 1), 0);
+
     // Insert receiving order
     const orderResult = await query(
       `INSERT INTO receiving_orders (order_no, staff_id, staff_name, store, supplier, total_items, total_qty, note)
-       VALUES ($1, $2, $3, $4, 'Specialized', 1, $5, $6)
+       VALUES ($1, $2, $3, $4, 'Specialized', $5, $6, $7)
        RETURNING id, order_no`,
       [
         orderNo,
         session?.staff_id || null,
         session?.name || 'Specialized Auto-Receive',
         store,
-        shipment.shipped_qty || 1,
+        totalItems,
+        totalQty,
         note,
       ]
     );
 
     const orderId = orderResult.rows[0].id;
 
-    // Insert placeholder item
-    await query(
-      `INSERT INTO receiving_items (receiving_order_id, product_id, product_name, barcode, price, quantity)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        orderId,
-        shipment.cust_po_number || shipment.shipment_id,
-        `Specialized ${shipment.ship_to || ''} (PO: ${shipment.cust_po_number || shipment.shipment_id})`,
-        shipment.shipment_id,
-        shipment.shipped_total || 0,
-        shipment.shipped_qty || 1,
-      ]
-    );
+    // Insert each item
+    for (const item of receiveItems) {
+      await query(
+        `INSERT INTO receiving_items (receiving_order_id, product_id, product_name, barcode, price, quantity)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          orderId,
+          item.product_id,
+          item.product_name,
+          item.barcode || item.product_id,
+          item.price || 0,
+          item.quantity || 1,
+        ]
+      );
+    }
 
     return NextResponse.json({
       success: true,
       data: {
         receiving_order_id: orderId,
         order_no: orderNo,
+        total_items: totalItems,
+        total_qty: totalQty,
       },
     });
   } catch (error) {

@@ -127,6 +127,22 @@ export interface B2bOrder {
   dynamicProperties?: Array<{ id: string; value: unknown }>;
 }
 
+export interface B2bOrderItem {
+  productId: string;
+  catRefId: string;
+  displayName: string;
+  quantity: number;
+  rawTotalPrice: number;
+  unitPrice: number;
+  catalogRefId?: string;
+}
+
+export interface B2bOrderDetail {
+  orderId: string;
+  state: string;
+  commerceItems: B2bOrderItem[];
+}
+
 /**
  * Fetch recent shipments for a specific store organization
  */
@@ -183,6 +199,40 @@ export async function fetchOrders(token: string, orgId: string): Promise<B2bOrde
   }
 
   return allOrders;
+}
+
+/**
+ * Fetch order detail with line items for a specific order
+ */
+export async function fetchOrderDetail(token: string, orderId: string, orgId: string): Promise<B2bOrderDetail | null> {
+  const res = await fetch(`${OCC_ORDERS}/${orderId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'X-CCProfileType': 'storefrontUI',
+      'X-CCOrganization': orgId,
+    },
+  });
+
+  if (!res.ok) {
+    console.error(`Fetch order detail failed for ${orderId}: ${res.status}`);
+    return null;
+  }
+
+  const data = await res.json();
+  const items: B2bOrderItem[] = (data.commerceItems || []).map((ci: Record<string, unknown>) => ({
+    productId: ci.productId || '',
+    catRefId: ci.catRefId || ci.catalogRefId || '',
+    displayName: ci.displayName || ci.productDisplayName || '',
+    quantity: Number(ci.quantity) || 1,
+    rawTotalPrice: Number(ci.rawTotalPrice) || Number(ci.amount) || 0,
+    unitPrice: Number(ci.unitPrice) || Number(ci.listPrice) || 0,
+  }));
+
+  return {
+    orderId: data.orderId || orderId,
+    state: data.state || '',
+    commerceItems: items,
+  };
 }
 
 /**

@@ -42,6 +42,20 @@ interface TransitData {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SearchResult = Record<string, any>;
 
+interface MatchedItem {
+  productId: string;
+  catRefId: string;
+  displayName: string;
+  quantity: number;
+  unitPrice: number;
+  rawTotalPrice: number;
+  matched: boolean;
+  inv_product_id?: string;
+  inv_product_name?: string;
+  inv_price?: number;
+  inv_stores?: Array<{ store: string; quantity: number }>;
+}
+
 const STORE_COLORS: Record<string, string> = {
   '台南': '#FF6B35',
   '高雄': '#F7C948',
@@ -77,6 +91,9 @@ export default function SpecializedDashboard() {
   const [confirmStore, setConfirmStore] = useState('台南');
   const [confirming, setConfirming] = useState(false);
   const [confirmMsg, setConfirmMsg] = useState('');
+  const [matchedItems, setMatchedItems] = useState<MatchedItem[]>([]);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [receiveOrderId, setReceiveOrderId] = useState<number | null>(null);
 
   // Store filter state (for transit tab)
   const [storeFilter, setStoreFilter] = useState<string>('all');
@@ -128,20 +145,51 @@ export default function SpecializedDashboard() {
     setDateTo(end.toISOString().split('T')[0]);
   };
 
+  // Open confirm modal and fetch matched items
+  const openConfirmModal = async (shipment: ShipmentItem) => {
+    setConfirmModal(shipment);
+    setConfirmMsg('');
+    setMatchedItems([]);
+    setReceiveOrderId(null);
+    setMatchLoading(true);
+    // Auto-set store from shipment if available
+    if (shipment.store) setConfirmStore(shipment.store);
+    try {
+      const res = await fetch(`/api/specialized/match-items?shipment_id=${shipment.shipment_id}`);
+      const json = await res.json();
+      if (json.success && json.data.items?.length > 0) {
+        setMatchedItems(json.data.items);
+      }
+    } catch { /* ignore */ }
+    finally { setMatchLoading(false); }
+  };
+
   // Confirm receipt handler
   const handleConfirmReceive = async () => {
     if (!confirmModal || confirming) return;
     setConfirming(true);
     setConfirmMsg('');
     try {
+      // Build items array from matched items
+      const items = matchedItems.length > 0
+        ? matchedItems.map(mi => ({
+            product_id: mi.matched ? mi.inv_product_id : mi.catRefId || mi.productId,
+            product_name: mi.matched ? mi.inv_product_name : mi.displayName,
+            barcode: mi.catRefId || mi.productId,
+            price: mi.matched ? mi.inv_price : mi.unitPrice,
+            quantity: mi.quantity,
+          }))
+        : undefined;
+
       const res = await fetch('/api/specialized/receive', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shipment_id: confirmModal.shipment_id, store: confirmStore }),
+        body: JSON.stringify({ shipment_id: confirmModal.shipment_id, store: confirmStore, items }),
       });
       const json = await res.json();
       if (json.success) {
-        setConfirmMsg(`收貨成功！單號: ${json.data.order_no}`);
+        setReceiveOrderId(json.data.receiving_order_id);
+        setConfirmMsg(`收貨成功！單號: ${json.data.order_no} (${json.data.total_items} 品項 / ${json.data.total_qty} 件)`);
         // Remove from in-transit list
         if (data) {
           setData({
@@ -149,7 +197,6 @@ export default function SpecializedDashboard() {
             inTransit: data.inTransit.filter(s => s.shipment_id !== confirmModal.shipment_id),
           });
         }
-        setTimeout(() => setConfirmModal(null), 1500);
       } else {
         setConfirmMsg(`錯誤: ${json.error}`);
       }
@@ -564,7 +611,7 @@ export default function SpecializedDashboard() {
                           )}
                         </div>
                         <button
-                          onClick={e => { e.stopPropagation(); setConfirmModal(s); setConfirmMsg(''); }}
+                          onClick={e => { e.stopPropagation(); openConfirmModal(s); }}
                           className="mt-2 w-full py-1.5 rounded-lg text-xs font-medium"
                           style={{ background: 'rgba(34,197,94,0.15)', color: 'rgb(34,197,94)', border: '1px solid rgba(34,197,94,0.3)' }}
                         >
@@ -616,34 +663,90 @@ export default function SpecializedDashboard() {
       {confirmModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center"
           style={{ background: 'rgba(0,0,0,0.5)' }}
-          onClick={() => !confirming && setConfirmModal(null)}
+          onClick={() => !confirming && !receiveOrderId && setConfirmModal(null)}
         >
-          <div className="w-full max-w-lg rounded-t-2xl p-5 pb-8"
+          <div className="w-full max-w-lg rounded-t-2xl p-5 pb-8 max-h-[85vh] overflow-y-auto"
             style={{ background: 'var(--color-bg-primary)' }}
             onClick={e => e.stopPropagation()}
           >
             <h3 className="text-base font-bold mb-1" style={{ color: 'var(--color-text-primary)' }}>
-              確認收貨
+              {receiveOrderId ? '收貨完成' : '確認收貨'}
             </h3>
-            <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
+            <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
               {confirmModal.cust_po_number || confirmModal.shipment_id}
               {confirmModal.shipped_qty > 0 && ` / ${confirmModal.shipped_qty} 件`}
               {confirmModal.shipped_total > 0 && ` / ${fmt$(confirmModal.shipped_total)}`}
             </p>
 
-            <label className="text-xs mb-1 block" style={{ color: 'var(--color-text-secondary)' }}>
-              收貨門市
-            </label>
-            <select
-              value={confirmStore}
-              onChange={e => setConfirmStore(e.target.value)}
-              className="w-full h-11 px-3 rounded-xl text-sm outline-none mb-4"
-              style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-primary)', border: '1px solid var(--color-bg-card-alt)' }}
-            >
-              {STORE_OPTIONS.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+            {matchLoading && (
+              <div className="flex items-center gap-2 py-4 justify-center">
+                <div className="w-4 h-4 border-2 rounded-full animate-spin"
+                  style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+                <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>比對商品中...</span>
+              </div>
+            )}
+
+            {!matchLoading && matchedItems.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                  訂單品項 ({matchedItems.filter(i => i.matched).length}/{matchedItems.length} 比對成功)
+                </p>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {matchedItems.map((item, idx) => (
+                    <div key={idx} className="rounded-lg p-2.5 text-xs"
+                      style={{
+                        background: item.matched ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                        border: `1px solid ${item.matched ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
+                      }}>
+                      <div className="flex items-start gap-1.5">
+                        <span className="shrink-0 mt-0.5">{item.matched ? '\u2705' : '\u2753'}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>
+                            {item.displayName}
+                          </p>
+                          <p style={{ color: 'var(--color-text-muted)' }}>
+                            SKU: {item.catRefId || item.productId} / x{item.quantity}
+                          </p>
+                          {item.matched && item.inv_product_name && (
+                            <p style={{ color: 'rgb(34,197,94)' }}>
+                              277: {item.inv_product_id} - {item.inv_product_name}
+                            </p>
+                          )}
+                        </div>
+                        <span className="shrink-0 font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                          {item.matched && item.inv_price ? fmt$(item.inv_price) : item.unitPrice > 0 ? fmt$(item.unitPrice) : ''}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!matchLoading && matchedItems.length === 0 && !receiveOrderId && (
+              <p className="text-xs mb-3 py-2 px-3 rounded-lg"
+                style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-muted)' }}>
+                無法取得訂單明細，將以出貨單資訊建立收貨記錄
+              </p>
+            )}
+
+            {!receiveOrderId && (
+              <>
+                <label className="text-xs mb-1 block" style={{ color: 'var(--color-text-secondary)' }}>
+                  收貨門市
+                </label>
+                <select
+                  value={confirmStore}
+                  onChange={e => setConfirmStore(e.target.value)}
+                  className="w-full h-11 px-3 rounded-xl text-sm outline-none mb-4"
+                  style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-primary)', border: '1px solid var(--color-bg-card-alt)' }}
+                >
+                  {STORE_OPTIONS.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </>
+            )}
 
             {confirmMsg && (
               <p className="text-xs mb-3" style={{
@@ -653,24 +756,45 @@ export default function SpecializedDashboard() {
               </p>
             )}
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmModal(null)}
-                disabled={confirming}
-                className="flex-1 h-11 rounded-xl text-sm font-medium"
-                style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}
-              >
-                取消
-              </button>
-              <button
-                onClick={handleConfirmReceive}
-                disabled={confirming}
-                className="flex-1 h-11 rounded-xl text-sm font-medium"
-                style={{ background: 'rgb(34,197,94)', color: '#fff', opacity: confirming ? 0.6 : 1 }}
-              >
-                {confirming ? '處理中...' : '確認收貨'}
-              </button>
-            </div>
+            {receiveOrderId ? (
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setConfirmModal(null); setReceiveOrderId(null); }}
+                  className="flex-1 h-11 rounded-xl text-sm font-medium"
+                  style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}
+                >
+                  關閉
+                </button>
+                <button
+                  onClick={() => router.push(`/receiving/${receiveOrderId}/labels`)}
+                  className="flex-1 h-11 rounded-xl text-sm font-medium"
+                  style={{ background: 'var(--color-accent)', color: '#fff' }}
+                >
+                  列印標籤
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmModal(null)}
+                  disabled={confirming}
+                  className="flex-1 h-11 rounded-xl text-sm font-medium"
+                  style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleConfirmReceive}
+                  disabled={confirming || matchLoading}
+                  className="flex-1 h-11 rounded-xl text-sm font-medium"
+                  style={{ background: 'rgb(34,197,94)', color: '#fff', opacity: (confirming || matchLoading) ? 0.6 : 1 }}
+                >
+                  {confirming ? '處理中...' : matchedItems.length > 0
+                    ? `確認收貨 (${matchedItems.length} 品項)`
+                    : '確認收貨'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
