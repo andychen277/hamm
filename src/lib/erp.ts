@@ -521,6 +521,126 @@ export async function createExpectedArrival(
   }
 }
 
+/**
+ * 查詢預計到貨記錄 (expectedprodquery0.php)
+ */
+export async function queryExpectedArrivals(
+  storeCode = 'ALL',
+  startDate?: string
+): Promise<{ success: boolean; data?: Array<{ fnoa: string; store: string; arrivalDate: string; supplier: string; memo: string; creator: string; status: string }>; error?: string }> {
+  await ensureLogin();
+
+  const date = startDate || (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+  })();
+
+  try {
+    const response = await fetch(`${ERP_BASE_URL}/expectedprodquery0.php`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': cookies,
+      },
+      body: encodeFormData({ ston: storeCode, 'radio-stacked': '1', ssdate: date, submit: '查詢' }),
+    });
+
+    const html = await response.text();
+    const records: Array<{ fnoa: string; store: string; arrivalDate: string; supplier: string; memo: string; creator: string; status: string }> = [];
+
+    const tbodyStart = html.indexOf('<tbody>');
+    if (tbodyStart === -1) return { success: true, data: records };
+    let tbodyEnd = html.indexOf('</tbody>');
+    if (tbodyEnd === -1) tbodyEnd = html.length;
+    const content = html.substring(tbodyStart + 7, tbodyEnd);
+
+    let pos = 0;
+    while (true) {
+      const trStart = content.indexOf('<tr', pos);
+      if (trStart === -1) break;
+      const trEnd = content.indexOf('</tr>', trStart);
+      if (trEnd === -1) break;
+      const row = content.substring(trStart, trEnd + 5);
+      pos = trEnd + 5;
+
+      const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
+      if (cells.length < 7) continue;
+
+      const getValue = (cell: string | undefined) =>
+        cell ? cell.replace(/<td[^>]*>|<\/td>/g, '').replace(/<[^>]*>/g, '').trim() : '';
+
+      records.push({
+        fnoa: getValue(cells[0]),
+        store: getValue(cells[1]),
+        arrivalDate: getValue(cells[2]),
+        supplier: getValue(cells[3]),
+        memo: getValue(cells[4]),
+        creator: getValue(cells[5]),
+        status: getValue(cells[6]),
+      });
+    }
+
+    return { success: true, data: records };
+  } catch (error) {
+    console.error('[ERP] 預計到貨查詢失敗:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * 建立門市調貨需求 → 寫入 ERP (storeprodtrn_finish.php)
+ */
+export async function createStoreTransfer(
+  fromStoreCode: string,
+  toStoreCode: string,
+  creator: string,
+  memo: string
+): Promise<{ success: boolean; orderNumber: string; error?: string }> {
+  await ensureLogin();
+
+  const fnoa = generateOrderNumber(fromStoreCode);
+
+  const payload = {
+    ston: fromStoreCode,
+    opnm: creator,
+    rston: toStoreCode,
+    memo1: memo,
+    fnoa: fnoa,
+  };
+
+  console.log(`[ERP] 建立調貨需求: ${fnoa}, ${STORE_NAMES[fromStoreCode] || fromStoreCode} → ${STORE_NAMES[toStoreCode] || toStoreCode}`);
+
+  try {
+    const response = await fetch(`${ERP_BASE_URL}/storeprodtrn_finish.php`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': cookies,
+      },
+      body: encodeFormData(payload),
+    });
+
+    const responseText = await response.text();
+    console.log(`[ERP] 調貨需求寫入回應: HTTP ${response.status}`);
+
+    if (responseText.includes('login') || responseText.includes('登入') || response.status === 401) {
+      cookies = '';
+      lastLoginTime = 0;
+      return { success: false, orderNumber: '', error: 'ERP Session 過期，請重試' };
+    }
+
+    if (responseText.includes('錯誤') || responseText.includes('失敗')) {
+      return { success: false, orderNumber: fnoa, error: '寫入 ERP 回應異常' };
+    }
+
+    return { success: true, orderNumber: fnoa };
+  } catch (error) {
+    console.error('[ERP] 調貨需求寫入失敗:', error);
+    return { success: false, orderNumber: '', error: String(error) };
+  }
+}
+
 // ============================================================
 // 匯款需求
 // ============================================================

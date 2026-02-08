@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { fetchAllStoresData, STORE_ORGS } from '@/lib/spec-b2b-client';
+import { pushMessage } from '@/lib/line';
 
 export const maxDuration = 60; // Allow up to 60s for sync
 
@@ -21,11 +22,18 @@ export async function POST() {
 
     let shipmentsUpserted = 0;
     let ordersUpserted = 0;
+    const newShipmentIds: string[] = [];
 
     // Upsert shipments
     for (const s of data.shipments) {
       const shipmentId = String(s.shipmentId || s.shipmentNumber);
       if (!shipmentId) continue;
+
+      // Check if this is a new shipment
+      const existing = await query('SELECT 1 FROM spec_shipments WHERE shipment_id = $1', [shipmentId]);
+      if (existing.rows.length === 0) {
+        newShipmentIds.push(`${s.store}: ${shipmentId} (PO: ${s.custPONumber || '-'}, $${s.shippedTotal || 0})`);
+      }
 
       await query(
         `INSERT INTO spec_shipments
@@ -123,6 +131,16 @@ export async function POST() {
        VALUES ('specialized-b2b-sync', 'success', $1, $2, NOW())`,
       [totalSynced, startedAt]
     );
+
+    // Send LINE notification for new shipments
+    if (newShipmentIds.length > 0) {
+      const adminIds = (process.env.ADMIN_LINE_IDS || '').split(',').filter(Boolean);
+      const msg = `Specialized 新出貨 (${newShipmentIds.length} 筆)\n${newShipmentIds.join('\n')}`;
+      for (const lineId of adminIds) {
+        await pushMessage(lineId.trim(), [{ type: 'text', text: msg }]).catch(() => {});
+      }
+      console.log(`[Spec Sync] Notified ${adminIds.length} admins about ${newShipmentIds.length} new shipments`);
+    }
 
     const storeBreakdown: Record<string, { shipments: number; orders: number }> = {};
     for (const store of Object.keys(STORE_ORGS)) {

@@ -75,7 +75,7 @@ export default function SpecializedDashboard() {
   const router = useRouter();
   const [data, setData] = useState<TransitData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'inventory' | 'transit' | 'pending'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'transit' | 'pending' | 'history'>('inventory');
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,6 +94,17 @@ export default function SpecializedDashboard() {
   const [matchedItems, setMatchedItems] = useState<MatchedItem[]>([]);
   const [matchLoading, setMatchLoading] = useState(false);
   const [receiveOrderId, setReceiveOrderId] = useState<number | null>(null);
+  const [scanBarcode, setScanBarcode] = useState('');
+
+  // History tab state
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [historyData, setHistoryData] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Transfer state
+  const [transferTo, setTransferTo] = useState('');
+  const [transferring, setTransferring] = useState(false);
+  const [transferMsg, setTransferMsg] = useState('');
 
   // Store filter state (for transit tab)
   const [storeFilter, setStoreFilter] = useState<string>('all');
@@ -143,6 +154,58 @@ export default function SpecializedDashboard() {
     start.setDate(start.getDate() - days);
     setDateFrom(start.toISOString().split('T')[0]);
     setDateTo(end.toISOString().split('T')[0]);
+  };
+
+  // Fetch history when tab switches to history
+  const fetchHistory = useCallback(async () => {
+    if (historyLoading) return;
+    setHistoryLoading(true);
+    try {
+      const res = await fetch('/api/specialized/history');
+      const json = await res.json();
+      if (json.success) setHistoryData(json.data);
+    } catch { /* ignore */ }
+    finally { setHistoryLoading(false); }
+  }, [historyLoading]);
+
+  useEffect(() => {
+    if (activeTab === 'history' && historyData.length === 0) fetchHistory();
+  }, [activeTab, historyData.length, fetchHistory]);
+
+  // Handle transfer
+  const handleTransfer = async () => {
+    if (!transferTo || !confirmStore || transferring) return;
+    setTransferring(true);
+    setTransferMsg('');
+    try {
+      const items = matchedItems.map(i => `${i.matched ? i.inv_product_name : i.displayName} x${i.quantity}`).join(', ');
+      const memo = `Specialized ${confirmModal?.cust_po_number || confirmModal?.shipment_id || ''}: ${items}`;
+      const res = await fetch('/api/specialized/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_store: confirmStore, to_store: transferTo, memo }),
+      });
+      const json = await res.json();
+      setTransferMsg(json.success ? `調貨成功: ${json.data.orderNumber}` : `調貨失敗: ${json.data?.error || json.error}`);
+    } catch { setTransferMsg('調貨失敗'); }
+    finally { setTransferring(false); }
+  };
+
+  // Handle barcode scan in confirm modal
+  const handleBarcodeScan = (barcode: string) => {
+    setScanBarcode(barcode);
+    if (!barcode) return;
+    // Find matching item and highlight
+    const idx = matchedItems.findIndex(i =>
+      i.catRefId === barcode || i.productId === barcode ||
+      (i.inv_product_id && i.inv_product_id === barcode)
+    );
+    if (idx >= 0) {
+      const el = document.getElementById(`match-item-${idx}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.classList.add('ring-2', 'ring-green-400');
+      setTimeout(() => el?.classList.remove('ring-2', 'ring-green-400'), 2000);
+    }
   };
 
   // Open confirm modal and fetch matched items
@@ -467,6 +530,7 @@ export default function SpecializedDashboard() {
                   { key: 'inventory' as const, label: `庫存 (${totalProducts})` },
                   { key: 'transit' as const, label: `在途 (${totalInTransit})` },
                   { key: 'pending' as const, label: `待處理 (${totalPending})` },
+                  { key: 'history' as const, label: '歷史' },
                 ].map(tab => (
                   <button
                     key={tab.key}
@@ -656,6 +720,70 @@ export default function SpecializedDashboard() {
                     ))}
                   </div>
                 )}
+
+                {/* History Tab */}
+                {activeTab === 'history' && (
+                  <div className="space-y-2">
+                    {historyLoading ? (
+                      <div className="flex items-center justify-center py-10">
+                        <div className="w-5 h-5 border-2 rounded-full animate-spin"
+                          style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+                      </div>
+                    ) : historyData.length === 0 ? (
+                      <p className="text-sm text-center py-8" style={{ color: 'var(--color-text-muted)' }}>
+                        無收貨歷史記錄
+                      </p>
+                    ) : historyData.map((order: { id: number; order_no: string; store: string; staff_name: string; total_items: number; total_qty: number; note: string; created_at: string; items: { product_id: string; product_name: string; quantity: number; price: number }[] }) => (
+                      <div key={order.id} className="rounded-xl p-3" style={{ background: 'var(--color-bg-card)' }}>
+                        <div className="flex justify-between items-start mb-1">
+                          <div className="flex items-center gap-1.5">
+                            {order.store && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded font-medium"
+                                style={{
+                                  background: (STORE_COLORS[order.store] || 'var(--color-accent)') + '22',
+                                  color: STORE_COLORS[order.store] || 'var(--color-accent)',
+                                }}>
+                                {order.store}
+                              </span>
+                            )}
+                            <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                              {order.order_no}
+                            </p>
+                          </div>
+                          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                            {order.created_at}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                          <span>{order.staff_name}</span>
+                          <span>{order.total_items} 品項 / {order.total_qty} 件</span>
+                        </div>
+                        {order.note && (
+                          <p className="text-[11px] truncate" style={{ color: 'var(--color-text-muted)' }}>
+                            {order.note}
+                          </p>
+                        )}
+                        {order.items && order.items.length > 0 && (
+                          <div className="mt-1.5 pt-1.5 border-t space-y-0.5" style={{ borderColor: 'var(--color-bg-card-alt)' }}>
+                            {order.items.map((item: { product_id: string; product_name: string; quantity: number; price: number }, idx: number) => (
+                              <div key={idx} className="flex justify-between text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                                <span className="truncate flex-1 mr-2">{item.product_name || item.product_id}</span>
+                                <span className="shrink-0">x{item.quantity} {item.price > 0 ? fmt$(item.price) : ''}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {historyData.length > 0 && (
+                      <button onClick={fetchHistory}
+                        className="w-full py-2 text-xs rounded-lg"
+                        style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-muted)' }}>
+                        重新載入
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -696,7 +824,7 @@ export default function SpecializedDashboard() {
                 </p>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {matchedItems.map((item, idx) => (
-                    <div key={idx} className="rounded-lg p-2.5 text-xs"
+                    <div key={idx} id={`match-item-${idx}`} className="rounded-lg p-2.5 text-xs transition-all"
                       style={{
                         background: item.matched ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
                         border: `1px solid ${item.matched ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
@@ -733,6 +861,23 @@ export default function SpecializedDashboard() {
               </p>
             )}
 
+            {!receiveOrderId && matchedItems.length > 0 && (
+              <div className="mb-3">
+                <label className="text-xs mb-1 block" style={{ color: 'var(--color-text-secondary)' }}>
+                  掃描條碼驗收
+                </label>
+                <input
+                  type="text"
+                  value={scanBarcode}
+                  onChange={e => handleBarcodeScan(e.target.value)}
+                  placeholder="掃描或輸入 SKU / 條碼..."
+                  className="w-full h-10 px-3 rounded-xl text-sm outline-none"
+                  style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-primary)', border: '1px solid var(--color-bg-card-alt)' }}
+                  autoFocus
+                />
+              </div>
+            )}
+
             {!receiveOrderId && (
               <>
                 <label className="text-xs mb-1 block" style={{ color: 'var(--color-text-secondary)' }}>
@@ -760,21 +905,61 @@ export default function SpecializedDashboard() {
             )}
 
             {receiveOrderId ? (
-              <div className="flex gap-3">
-                <button
-                  onClick={() => { setConfirmModal(null); setReceiveOrderId(null); }}
-                  className="flex-1 h-11 rounded-xl text-sm font-medium"
-                  style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}
-                >
-                  關閉
-                </button>
-                <button
-                  onClick={() => router.push(`/receiving/${receiveOrderId}/labels`)}
-                  className="flex-1 h-11 rounded-xl text-sm font-medium"
-                  style={{ background: 'var(--color-accent)', color: '#fff' }}
-                >
-                  列印標籤
-                </button>
+              <div className="space-y-3">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { setConfirmModal(null); setReceiveOrderId(null); }}
+                    className="flex-1 h-11 rounded-xl text-sm font-medium"
+                    style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}
+                  >
+                    關閉
+                  </button>
+                  <button
+                    onClick={() => router.push(`/receiving/${receiveOrderId}/labels`)}
+                    className="flex-1 h-11 rounded-xl text-sm font-medium"
+                    style={{ background: 'var(--color-accent)', color: '#fff' }}
+                  >
+                    列印標籤
+                  </button>
+                </div>
+
+                {/* Transfer Section */}
+                <div className="pt-2 border-t" style={{ borderColor: 'var(--color-bg-card-alt)' }}>
+                  <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                    調貨至其他門市
+                  </p>
+                  <div className="flex gap-2">
+                    <select
+                      value={transferTo}
+                      onChange={e => setTransferTo(e.target.value)}
+                      className="flex-1 h-10 px-3 rounded-xl text-sm outline-none"
+                      style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-primary)', border: '1px solid var(--color-bg-card-alt)' }}
+                    >
+                      <option value="">選擇目標門市</option>
+                      {STORE_OPTIONS.filter(s => s !== confirmStore).map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleTransfer}
+                      disabled={!transferTo || transferring}
+                      className="px-4 h-10 rounded-xl text-sm font-medium shrink-0"
+                      style={{
+                        background: (!transferTo || transferring) ? 'var(--color-bg-card-alt)' : 'rgb(147,51,234)',
+                        color: (!transferTo || transferring) ? 'var(--color-text-muted)' : '#fff',
+                      }}
+                    >
+                      {transferring ? '...' : '調貨'}
+                    </button>
+                  </div>
+                  {transferMsg && (
+                    <p className="text-xs mt-2" style={{
+                      color: transferMsg.includes('成功') ? 'var(--color-positive)' : 'var(--color-negative)',
+                    }}>
+                      {transferMsg}
+                    </p>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex gap-3">
